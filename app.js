@@ -11,7 +11,7 @@ app.use(cors())
 
 try {
     db.connectAnother();
-    // db.connect();
+    db.connect();
     app.use('/api/tennis', tennisRoutes)
     app.listen(PORT, () => console.log(`App listening at http://localhost:${PORT}`))
 } catch (err) {

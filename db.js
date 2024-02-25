@@ -2,9 +2,10 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const Server = require('mongodb').Server;
 const ObjectID = require('mongodb').ObjectID;
-const dbname = "lakeshoreTennis";
+// const dbname = "lakeshoreTennis";
+const dbname = "tennis";
 const url = "mongodb://localhost:27017";
-// const uri = "mongodb+srv://<username>:<password>@cluster0.6lpt7vd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+const uri = "mongodb+srv://mchac4:VrqrHtLMGlWshQ7A@cluster0.6lpt7vd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 
 let _db;
 
@@ -14,7 +15,6 @@ const state = {
 };
 
 const connectAnother = () => {
-    const uri = "mongodb+srv://mchac4:VrqrHtLMGlWshQ7A@cluster0.6lpt7vd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
     // Create a MongoClient with a MongoClientOptions object to set the Stable API version
     const client = new MongoClient(uri, {
         serverApi: {
@@ -44,10 +44,9 @@ const connectAnother = () => {
 const connect = () => {
     if (!state.db) {
         try {
-            const client = new MongoClient(url);
+            // const client = new MongoClient(url);
+            const client = new MongoClient(uri);
             console.log("Connected to server");
-            // client.admin.command('ping')
-            // console.log("Pinged your deployment. You successfully connected to MongoDB!")
             state.db = client.db(dbname);
             console.log("Connected to MongoDB");
         } catch (err) {
