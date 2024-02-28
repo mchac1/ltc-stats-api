@@ -1,13 +1,5 @@
-// const MongoClient = require('mongodb').MongoClient;
 const { MongoClient, ServerApiVersion } = require('mongodb');
-const Server = require('mongodb').Server;
-const ObjectID = require('mongodb').ObjectID;
-// const dbname = "lakeshoreTennis";
-const dbname = "tennis";
-const url = "mongodb://localhost:27017";
-const uri = "mongodb+srv://mchac4:VrqrHtLMGlWshQ7A@cluster0.6lpt7vd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
-
-let _db;
+const { mongoUri, mongoDbName } = require('./config')
 
 const state = {
   db: null,
@@ -16,7 +8,7 @@ const state = {
 
 const connectAnother = () => {
     // Create a MongoClient with a MongoClientOptions object to set the Stable API version
-    const client = new MongoClient(uri, {
+    const client = new MongoClient(mongoUri, {
         serverApi: {
             version: ServerApiVersion.v1,
             strict: true,
@@ -31,7 +23,8 @@ const connectAnother = () => {
                 // Send a ping to confirm a successful connection
                 await client.db("admin").command({ ping: 1 });
                 console.log("Pinged your deployment. You successfully connected to MongoDB!");
-                state.anotherDb = client.db('sample_guides');
+                // state.anotherDb = client.db('tennis');
+                state.anotherDb = client.db(mongoDbName);
             // } finally {
             //     // Ensures that the client will close when you finish/error
             //     await client.close();
@@ -44,19 +37,14 @@ const connectAnother = () => {
 const connect = () => {
     if (!state.db) {
         try {
-            // const client = new MongoClient(url);
-            const client = new MongoClient(uri);
+            const client = new MongoClient(mongoUri);
             console.log("Connected to server");
-            state.db = client.db(dbname);
+            state.db = client.db(mongoDbName);
             console.log("Connected to MongoDB");
         } catch (err) {
             throw new Error(err.message);
         }
     }
-}
-
-const getPrimaryKey = (_id) => {
-  return ObjectID(_id);
 }
 
 const getDB = () => {
@@ -67,4 +55,4 @@ const getAnotherDb = () => {
   return state.anotherDb;
 }
 
-module.exports = { getDB, getAnotherDb, connect, connectAnother, getPrimaryKey };
+module.exports = { getDB, getAnotherDb, connect, connectAnother };

@@ -1,13 +1,11 @@
 var express = require('express');
 var app = express();
-const { PORT, mongoUri } = require('./config')
+const { PORT } = require('./config')
 const cors = require('cors')
 const tennisRoutes = require('./routes/api/tennis')
 const db = require("./db");
 
 app.use(cors())
-
-// db.connectAnother();
 
 try {
     db.connectAnother();
