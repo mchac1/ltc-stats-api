@@ -4,6 +4,9 @@ const dotenv = require('dotenv');
 
 dotenv.config()
 
+const testuri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.6lpt7vd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+console.log(`CAM testuri: ${testuri}`)
+
 const state = {
   db: null,
   anotherDb: null
