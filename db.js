@@ -1,5 +1,8 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const { mongoUri, mongoDbName } = require('./config')
+const dotenv = require('dotenv');
+
+dotenv.config()
 
 const state = {
   db: null,
@@ -38,6 +41,7 @@ const connect = () => {
     if (!state.db) {
         try {
             const client = new MongoClient(mongoUri);
+            // const client = new MongoClient(newUri);
             console.log("Connected to server");
             state.db = client.db(mongoDbName);
             console.log("Connected to MongoDB");
