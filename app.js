@@ -9,6 +9,9 @@ const db = require("./db");
 app.use(cors())
 dotenv.config()
 
+console.log('CAM interesting');
+console.log(`CAM PORT: ${process.env.PORT}`);
+
 try {
     db.connectAnother();
     db.connect();
