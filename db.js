@@ -1,5 +1,5 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
-const { mongoUri, mongoDbName } = require('./config')
+const { mongoDbName } = require('./config')
 const dotenv = require('dotenv');
 
 dotenv.config()
@@ -13,7 +13,6 @@ const state = {
 
 const connectAnother = () => {
     // Create a MongoClient with a MongoClientOptions object to set the Stable API version
-    // const client = new MongoClient(mongoUri, {
     const client = new MongoClient(mongoDbUri, {
         serverApi: {
             version: ServerApiVersion.v1,
@@ -43,9 +42,7 @@ const connectAnother = () => {
 const connect = () => {
     if (!state.db) {
         try {
-            // const client = new MongoClient(mongoUri);
             const client = new MongoClient(mongoDbUri);
-            // const client = new MongoClient(newUri);
             console.log("Connected to server");
             state.db = client.db(mongoDbName);
             console.log("Connected to MongoDB");
