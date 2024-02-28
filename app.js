@@ -12,8 +12,9 @@ dotenv.config()
 console.log('CAM interesting');
 console.log(`CAM PORT: ${process.env.PORT}`);
 console.log(`CAM DB_USER: ${process.env.DB_USER}`);
-console.log(`CAM process.env:`);
-console.log(process.env);
+// console.log(`CAM DB_USER 2: ${DB_USER}`);
+// console.log(`CAM process.env:`);
+// console.log(process.env);
 
 try {
     db.connectAnother();
