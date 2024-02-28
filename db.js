@@ -4,8 +4,7 @@ const dotenv = require('dotenv');
 
 dotenv.config()
 
-const testuri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.6lpt7vd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-console.log(`CAM testuri: ${testuri}`)
+const mongoDbUri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.6lpt7vd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const state = {
   db: null,
@@ -14,7 +13,8 @@ const state = {
 
 const connectAnother = () => {
     // Create a MongoClient with a MongoClientOptions object to set the Stable API version
-    const client = new MongoClient(mongoUri, {
+    // const client = new MongoClient(mongoUri, {
+    const client = new MongoClient(mongoDbUri, {
         serverApi: {
             version: ServerApiVersion.v1,
             strict: true,
@@ -43,7 +43,8 @@ const connectAnother = () => {
 const connect = () => {
     if (!state.db) {
         try {
-            const client = new MongoClient(mongoUri);
+            // const client = new MongoClient(mongoUri);
+            const client = new MongoClient(mongoDbUri);
             // const client = new MongoClient(newUri);
             console.log("Connected to server");
             state.db = client.db(mongoDbName);
