@@ -4,17 +4,6 @@ const db = require("../../db");
 const router = Router()
 
 
-router.get('/simple', async (req, res) => {
-    console.log("CAM called simple");
-
-    // var bingo = await db.getAnotherDb().collection('planets').findOne({}).toArray();
-    var bingo = await db.getAnotherDb().collection('planets').findOne({});
-    console.log('CAM bingo')
-    console.log(bingo)
-
-    res.status(200).json({ planet: bingo })
-})
-
 router.get('/', (req, res) => {
     res.status(200).json({ name: 'Jestin' })
 })
@@ -112,7 +101,7 @@ router.get('/getFamilyHours', async (req, res) => {
 
     let reservationsQuery = {
         "Reservation Type": {
-          $in: ["Singles", "Doubles"],
+          $in: ["Singles", "Doubles", "Backboard (only court 8)", "Ball Machine"],
         },
         "Is Event?": false,
       }
@@ -218,7 +207,7 @@ router.get('/getMemberHours', async (req, res) => {
 
     let reservationsQuery = {
         "Reservation Type": {
-          $in: ["Singles", "Doubles"],
+          $in: ["Singles", "Doubles", "Backboard (only court 8)", "Ball Machine"],
         },
         "Is Event?": false,
       }
@@ -378,13 +367,5 @@ router.get('/getDistinctTypes', async (req, res) => {
     var reservationsArray = await db.getDB().collection('reservations').distinct("Reservation Type", {"Is Event?": true});
     res.status(200).json(reservationsArray)
 });
-
-router.get('/getOne', (req, res) => {
-    console.log("CAM called getOne");
-    db.getDB().collection('reservations').findOne().then((resp) => {
-        console.log(resp);
-        res.status(200).json(resp)
-    })
-})
 
 module.exports = router
