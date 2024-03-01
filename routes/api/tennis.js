@@ -349,6 +349,50 @@ router.get('/getReservationsByType', async (req, res) => {
     res.status(200).json(reservationsArray)
 })
 
+router.get('/getReservationTypeCourtTotals', async (req, res) => {
+
+    let reservationsQuery = {
+        "Reservation Type": {
+          $in: ["Singles", "Doubles", "Backboard (only court 8)", "Ball Machine"],
+        },
+        "Is Event?": false,
+      }
+    if (req.query.Year) {
+        reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
+    }
+
+    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+    let courtTotals = [];
+
+    reservationsArray.forEach((oneRes) => {
+
+        let courtMatch = courtTotals.find(a => a.court === oneRes.Courts);
+        if (courtMatch) {
+            courtMatch.reservationsTotal++;
+            if (courtMatch[oneRes["Reservation Type"]]) {
+                courtMatch[oneRes["Reservation Type"]]++;
+            } else {
+                courtMatch[oneRes["Reservation Type"]] = 1;
+            }
+        } else {
+            let toPush = {
+                court: oneRes.Courts,
+                reservationsTotal: 1,
+            };
+            toPush[oneRes["Reservation Type"]] = 1
+            courtTotals.push(toPush)
+        }
+
+    });
+
+    courtTotals.sort(function(a, b) {
+        return a.court.localeCompare(b.court);
+    });
+
+    res.status(200).json(courtTotals)
+})
+
 router.get('/getReservationsByYearType', async (req, res) => {
     console.log("CAM called getReservationsByYearType");
     var reservationsArray = await db.getDB().collection('reservations').find({"Start Date / Time": {$regex: req.query.Year}, "Reservation Type": req.query.Type}).toArray();
