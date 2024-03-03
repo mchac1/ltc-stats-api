@@ -249,7 +249,7 @@ router.get('/getMemberHours', async (req, res) => {
         commaSplit.forEach((piece) => {
             let newPieces = piece.split(' (#')
             let memberName = newPieces[0];
-            let memberId = newPieces[1].replace(')','');;
+            let memberId = newPieces[1].replace(')','');
 
             let memberMatch = memberHours.find(a => a.name === memberName);
             if (memberMatch) {
@@ -273,73 +273,6 @@ router.get('/getMemberHours', async (req, res) => {
 
     res.status(200).json(memberHours)
 })
-
-// router.get('/getMemberHours', async (req, res) => {
-//     console.log("CAM called getMemberHours");
-
-//     let reservationsQuery = {
-//         "Reservation Type": {
-//           $in: ["Singles", "Doubles"],
-//         },
-//         "Is Event?": false,
-//       }
-//     if (req.query.Year) {
-//         reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
-//     }
-
-//     var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
-
-//     let memberHours = []
-
-//     reservationsArray.forEach((oneRes) => {
-
-//         // Parse time of day out of date field
-//         const startDate = oneRes['Start Date / Time'];
-//         const endDate = oneRes['End Date / Time'];
-//         const [delme1, startTimeOfDay, startAmPm] = startDate.split(' ');
-//         const startTime = `${startTimeOfDay} ${startAmPm}`;
-//         const [delme2, endTimeOfDay, endAmPm] = endDate.split(' ');
-//         const endTime = `${endTimeOfDay} ${endAmPm}`;
-
-//         // Calculate time on court in hours for this reservation
-//         const timeOnCourt = ( new Date("1970-1-1 " + convertTime12to24(endTime)) - new Date("1970-1-1 " + convertTime12to24(startTime)) ) / 1000 / 60 / 60;
-
-//         // Members field contains comma-separated list of 
-//         // players in that reservation. Need to parse them out.
-//         // e.g. "Donna Lee Pon (#207216), Paulette Trudelle (#210277), Adriana Garcia (#209420), Sandra Harazny (#207532)"
-//         const members = oneRes.Members;
-
-//         // If no members associated with reservation, skip it
-//         if (!members) { return }
-
-//         let commaSplit = members.split(', ')
-
-//         // Assemble array showing hours on court for each member
-//         commaSplit.forEach((piece) => {
-//             let newPieces = piece.split(' (#')
-//             let memberName = newPieces[0];
-//             let memberId = newPieces[1].replace(')','');;
-
-//             let memberMatch = memberHours.find(a => a.name === memberName);
-//             if (memberMatch) {
-//                 memberMatch.count++;
-//                 memberMatch.hoursOnCourt = memberMatch.hoursOnCourt + timeOnCourt;
-//             } else {
-//                 let toPush = {
-//                     name: memberName,
-//                     id: memberId,
-//                     count: 1,
-//                     hoursOnCourt: timeOnCourt
-//                 };
-//                 memberHours.push(toPush)
-//             }
-//         })
-//     });
-
-//     memberHours.sort((a, b) => b.hoursOnCourt - a.hoursOnCourt);
-
-//     res.status(200).json(memberHours)
-// })
 
 router.get('/getReservationsByType', async (req, res) => {
     console.log("CAM called getReservationsByType");
@@ -391,6 +324,128 @@ router.get('/getReservationTypeCourtTotals', async (req, res) => {
     });
 
     res.status(200).json(courtTotals)
+})
+
+router.get('/getMemberFavourites', async (req, res) => {
+
+    let reservationsQuery = {
+        "Members": { $regex: req.query.Name },
+        "Reservation Type": {
+          $in: ["Singles", "Doubles", "Backboard (only court 8)", "Ball Machine"],
+        },
+        "Is Event?": false,
+      }
+    // if (req.query.Year) {
+    //     reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
+    // }
+
+    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+    // If no reservations found for this member, reply with empty object
+    if (reservationsArray.length === 0) {
+        res.status(200).json({})
+        return
+    }
+
+    let courtTotals = [];
+    let typeTotals = [];
+    let timeTotals = [];
+    let memberHours = [];
+
+    reservationsArray.forEach((oneRes) => {
+
+        let courtMatch = courtTotals.find(a => a.court === oneRes.Courts);
+        if (courtMatch) {
+            courtMatch.reservationsTotal++;
+        } else {
+            let toPush = {
+                court: oneRes.Courts,
+                reservationsTotal: 1,
+            };
+            courtTotals.push(toPush)
+        }
+
+        let typeMatch = typeTotals.find(a => a.type === oneRes["Reservation Type"]);
+        if (typeMatch) {
+            typeMatch.reservationsTotal++;
+        } else {
+            let toPush = {
+                type: oneRes["Reservation Type"],
+                reservationsTotal: 1,
+            };
+            typeTotals.push(toPush)
+        }
+
+        const startRes = oneRes['Start Date / Time'];
+        const [startDate, startTimeOfDay, startAmPm] = startRes.split(' ');
+        const startTime = `${startTimeOfDay} ${startAmPm}`;
+        let timeMatch = timeTotals.find(a => a.time === startTime);
+        if (timeMatch) {
+            timeMatch.reservationsTotal++;
+        } else {
+            let toPush = {
+                time: startTime,
+                reservationsTotal: 1,
+            };
+            timeTotals.push(toPush)
+        }
+
+        // Get favourite partner
+
+        const members = oneRes.Members;
+
+        // If no members associated with reservation, skip it
+        if (members) {
+
+            let commaSplit = members.split(', ')
+
+            // Assemble array showing hours on court for each member
+            commaSplit.forEach((piece) => {
+                let newPieces = piece.split(' (#')
+                let memberName = newPieces[0];
+                let memberId = newPieces[1].replace(')','');
+
+                if (memberName !== req.query.Name) {
+
+                    // let memberMatch = memberHours.find(a => a.name === memberName);
+                    let memberMatch = memberHours.find(a => a.id === memberId);
+                    if (memberMatch) {
+                        memberMatch.count++;
+                        // memberMatch.hoursOnCourt = memberMatch.hoursOnCourt + timeOnCourt;
+                        // memberMatch.primeTimeOnCourt = memberMatch.primeTimeOnCourt + primeTimeOnCourt;
+                    } else {
+                        let toPush = {
+                            name: memberName,
+                            id: memberId,
+                            count: 1,
+                            // hoursOnCourt: timeOnCourt,
+                            // primeTimeOnCourt: primeTimeOnCourt
+                        };
+                        memberHours.push(toPush)
+                    }
+                }
+            })
+        }
+
+    });
+
+    const faveCourt = courtTotals.reduce(function(prev, current) {
+        return (prev && prev.reservationsTotal > current.reservationsTotal) ? prev : current
+    })
+
+    const faveType = typeTotals.reduce(function(prev, current) {
+        return (prev && prev.reservationsTotal > current.reservationsTotal) ? prev : current
+    })
+
+    const faveTime = timeTotals.reduce(function(prev, current) {
+        return (prev && prev.reservationsTotal > current.reservationsTotal) ? prev : current
+    })
+
+    const favePartner = memberHours.reduce(function(prev, current) {
+        return (prev && prev.count > current.count) ? prev : current
+    })
+
+    res.status(200).json({ court: faveCourt, type: faveType, time: faveTime, partner: favePartner })
 })
 
 router.get('/getReservationsByYearType', async (req, res) => {
