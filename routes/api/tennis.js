@@ -32,6 +32,7 @@ router.get('/getReservationCountByMember', async (req, res) => {
           },
         },
       ]).toArray();
+      
     res.status(200).json(reservationsArray)
 })
 
@@ -324,6 +325,116 @@ router.get('/getReservationTypeCourtTotals', async (req, res) => {
     });
 
     res.status(200).json(courtTotals)
+})
+
+router.get('/getLongestFamilyDay', async (req, res) => {
+
+    // No name provided, no results
+    if (!req.query.Name) {
+        res.status(200).json({});
+        return;
+    }
+
+    // Gather all members of this family and
+    // assemble array of their IDs
+    var membersArray = await db.getDB().collection('members').find({ "Family" : req.query.Name }).toArray();
+    var memberIds = membersArray.map(a => a['Member #'])
+
+    // Combine them into regex string so we can
+    // query all reservations they are involved in.
+    regex = memberIds.join("|");
+
+    const matchQuery = {
+        "Members": { $regex: regex },
+        "Reservation Type": { $ne: "Private Lesson" }
+    }
+
+    // Limit results to specific year if provided
+    if (req.query.Year) {
+        matchQuery["Start Date / Time"] = { $regex: req.query.Year }
+    }
+
+    var reservationsArray = await db.getDB().collection('reservations').aggregate( [
+        {
+            $match: matchQuery
+        },
+        {
+            $addFields: {
+                dateOfBooking: {
+                    $substr: ['$Start Date / Time', 0, 10]
+                }
+            }
+        },
+      ]).toArray();
+
+    // No reservations meet these conditions, so no results
+    if (!reservationsArray) {
+        res.status(200).json({});
+        return;
+    }
+
+    let courtTotals = [];
+    reservationsArray.forEach((oneRes) => {
+
+        // Parse time of day out of date field
+        const startRes = oneRes['Start Date / Time'];
+        const endRes = oneRes['End Date / Time'];
+        const [startDate, startTimeOfDay, startAmPm] = startRes.split(' ');
+        const startTime = `${startTimeOfDay} ${startAmPm}`;
+        const [endDate, endTimeOfDay, endAmPm] = endRes.split(' ');
+        const endTime = `${endTimeOfDay} ${endAmPm}`;
+
+        // Calculate time on court in hours for this reservation
+        const timeOnCourt = getTimeOnCourt(startTime, endTime);
+        // const primeTimeOnCourt = getPrimeTimeOnCourt(startDate, startTime, endTime);
+
+        const members = oneRes.Members;
+
+        // If no members associated with reservation, skip it
+        if (!members) { return }
+
+        let commaSplit = members.split(', ')
+
+        // Assemble array showing hours on court for each member
+        commaSplit.forEach((piece) => {
+            let newPieces = piece.split(' (#')
+            let memberName = newPieces[0];
+            let memberId = newPieces[1].replace(')','');
+
+            // console.log(`${memberId}`)
+
+            if (memberIds.includes(parseInt(memberId))) {
+                // console.log(`${memberName} is in family Shmalenberg`)
+
+                let courtMatch = courtTotals.find(a => a.day === oneRes.dateOfBooking);
+                if (courtMatch) {
+                    courtMatch.reservations++;
+                    courtMatch.hours = courtMatch.hours + timeOnCourt;
+                } else {
+                    let toPush = {
+                        day: oneRes.dateOfBooking,
+                        reservations: 1,
+                        hours: timeOnCourt
+                    };
+                    courtTotals.push(toPush)
+                }
+            }
+        })
+    });
+
+    courtTotals.sort((a, b) => b.hours - a.hours);
+
+    console.log(courtTotals)
+
+    // Return top result
+    res.status(200).json(courtTotals[0])
+})
+
+router.get('/getAllMembers', async (req, res) => {
+
+    var membersArray = await db.getDB().collection('members').find({}).toArray();
+
+    res.status(200).json(membersArray)
 })
 
 router.get('/getMemberFavourites', async (req, res) => {
