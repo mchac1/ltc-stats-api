@@ -346,7 +346,7 @@ router.get('/getMemberLessonHours', async (req, res) => {
 })
 
 router.get('/getInstructorHours', async (req, res) => {
-    console.log("CAM called getInstructorHours");
+    console.log("CAM called getInstructorHours again");
 
     let reservationsQuery = {
         "Reservation Type": {
