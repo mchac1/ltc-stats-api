@@ -314,6 +314,11 @@ router.get('/getMemberLessonHours', async (req, res) => {
         // If no members associated with reservation, skip it
         if (!members) { return }
 
+        let thisInstructor = oneRes['Instructor(s)']
+        if (!thisInstructor) {
+            thisInstructor = oneRes['Created By']
+        }
+
         let commaSplit = members.split(', ')
 
         // Assemble array showing hours on court for each member
@@ -327,13 +332,23 @@ router.get('/getMemberLessonHours', async (req, res) => {
                 memberMatch.count++;
                 memberMatch.hoursOnCourt = memberMatch.hoursOnCourt + timeOnCourt;
                 memberMatch.primeTimeOnCourt = memberMatch.primeTimeOnCourt + primeTimeOnCourt;
+                const instructors = memberMatch.instructors;
+                let instructorMatch = instructors.find(a => a.name === thisInstructor);
+                if (instructorMatch) {
+                    instructorMatch.hours = instructorMatch.hours + timeOnCourt;
+                } else {
+                    instructors.push({ name: thisInstructor, hours: timeOnCourt })
+                }
             } else {
                 let toPush = {
                     name: memberName,
                     id: memberId,
                     count: 1,
                     hoursOnCourt: timeOnCourt,
-                    primeTimeOnCourt: primeTimeOnCourt
+                    primeTimeOnCourt: primeTimeOnCourt,
+                    instructors: [
+                        { name: thisInstructor, hours: timeOnCourt }
+                    ]
                 };
                 memberHours.push(toPush)
             }
@@ -345,6 +360,78 @@ router.get('/getMemberLessonHours', async (req, res) => {
     res.status(200).json(memberHours)
 })
 
+// router.get('/getMemberLessonHours', async (req, res) => {
+//     console.log("CAM called getMemberLessonHours");
+
+//     let reservationsQuery = {
+//         "Reservation Type": {
+//           $in: ["Private Lesson"],
+//         },
+//         "Is Event?": false,
+//       }
+//     if (req.query.Year) {
+//         reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
+//     }
+
+//     var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+//     let memberHours = []
+
+//     reservationsArray.forEach((oneRes) => {
+
+//         // Parse time of day out of date field
+//         const startRes = oneRes['Start Date / Time'];
+//         const endRes = oneRes['End Date / Time'];
+//         const [startDate, startTimeOfDay, startAmPm] = startRes.split(' ');
+//         const startTime = `${startTimeOfDay} ${startAmPm}`;
+//         const [endDate, endTimeOfDay, endAmPm] = endRes.split(' ');
+//         const endTime = `${endTimeOfDay} ${endAmPm}`;
+
+//         // Calculate time on court in hours for this reservation
+//         const timeOnCourt = getTimeOnCourt(startTime, endTime);
+//         const primeTimeOnCourt = getPrimeTimeOnCourt(startDate, startTime, endTime);
+
+//         // Members field contains comma-separated list of 
+//         // players in that reservation. Need to parse them out.
+//         // e.g. "Donna Lee Pon (#207216), Paulette Trudelle (#210277), Adriana Garcia (#209420), Sandra Harazny (#207532)"
+//         const members = oneRes.Members;
+
+//         // If no members associated with reservation, skip it
+//         if (!members) { return }
+
+//         let commaSplit = members.split(', ')
+
+//         // Assemble array showing hours on court for each member
+//         commaSplit.forEach((piece) => {
+//             let newPieces = piece.split(' (#')
+//             let memberName = newPieces[0];
+//             let memberId = newPieces[1].replace(')','');
+
+//             let memberMatch = memberHours.find(a => a.name === memberName);
+//             if (memberMatch) {
+//                 memberMatch.count++;
+//                 memberMatch.hoursOnCourt = memberMatch.hoursOnCourt + timeOnCourt;
+//                 memberMatch.primeTimeOnCourt = memberMatch.primeTimeOnCourt + primeTimeOnCourt;
+//             } else {
+//                 let toPush = {
+//                     name: memberName,
+//                     id: memberId,
+//                     count: 1,
+//                     hoursOnCourt: timeOnCourt,
+//                     primeTimeOnCourt: primeTimeOnCourt
+//                 };
+//                 memberHours.push(toPush)
+//             }
+//         })
+//     });
+
+//     memberHours.sort((a, b) => b.hoursOnCourt - a.hoursOnCourt);
+
+//     res.status(200).json(memberHours)
+// })
+
+// CAM TODO this needs to account for records where there is no
+// Instructor(s) field. Go with Created By in that case
 router.get('/getInstructorHours', async (req, res) => {
 
     let reservationsQuery = {
