@@ -346,7 +346,6 @@ router.get('/getMemberLessonHours', async (req, res) => {
 })
 
 router.get('/getInstructorHours', async (req, res) => {
-    console.log("CAM called getInstructorHours again");
 
     let reservationsQuery = {
         "Reservation Type": {
@@ -378,32 +377,30 @@ router.get('/getInstructorHours', async (req, res) => {
 
         // Members field contains comma-separated list of 
         // players in that reservation. Need to parse them out.
-        // e.g. "Donna Lee Pon (#207216), Paulette Trudelle (#210277), Adriana Garcia (#209420), Sandra Harazny (#207532)"
-        // const members = oneRes.Members;
         const instructors = oneRes['Instructor(s)'];
 
         // If no members associated with reservation, skip it
-        // if (!members) { return }
         if (!instructors) { return }
 
-        // let commaSplit = members.split(', ')
+        let commaSplit = instructors.split(', ')
 
         // Assemble array showing hours on court for each member
-
-            let memberMatch = memberHours.find(a => a.name === instructors);
+        commaSplit.forEach((piece) => {
+            let memberMatch = memberHours.find(a => a.name === piece);
             if (memberMatch) {
                 memberMatch.count++;
                 memberMatch.hoursOnCourt = memberMatch.hoursOnCourt + timeOnCourt;
                 memberMatch.primeTimeOnCourt = memberMatch.primeTimeOnCourt + primeTimeOnCourt;
             } else {
                 let toPush = {
-                    name: instructors,
+                    name: piece,
                     count: 1,
                     hoursOnCourt: timeOnCourt,
                     primeTimeOnCourt: primeTimeOnCourt
                 };
                 memberHours.push(toPush)
             }
+        });
 
     });
 
@@ -414,8 +411,6 @@ router.get('/getInstructorHours', async (req, res) => {
 
 router.get('/getReservationsByType', async (req, res) => {
     console.log("CAM called getReservationsByType");
-    // let queryType = req.query.Type;
-    // var reservationsArray = await db.getDB().collection('reservations').find({"Reservation Type": req.query.Type}).toArray();
     var reservationsArray = await db.getDB().collection('reservations').find({"Reservation Type": req.query.Type, "Is Event?": false}).toArray();
     res.status(200).json(reservationsArray)
 })
