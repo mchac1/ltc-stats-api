@@ -105,6 +105,56 @@ const getReservationInstructor = (reservationRecord) => {
     return instructor
 }
 
+router.get('/getAverageMonthlyAttendance', async (req, res) => {
+    console.log("CAM called getAverageMonthlyAttendance");
+
+    let reservationsQuery = {
+        "Is Event?": true,
+      }
+
+    if (req.query.ResType) {
+        reservationsQuery["Reservation Type"] = req.query.ResType;
+    }
+    if (req.query.EventName) {
+        reservationsQuery["Event Name"] = req.query.EventName;
+    }
+    if (req.query.Year) {
+        reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
+    }
+
+    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+    const monthlyArray = [];
+
+    reservationsArray.forEach((item) => {
+
+        // determine year by getting first 4 chars of start date
+        const month = item["Start Date / Time"].substring(0, 7);
+
+        const monthMatch = monthlyArray.find((a) => {
+            return a.month === month
+        })
+
+        if (monthMatch) {
+            monthMatch.count++;
+            monthMatch.total += item["Members Count"]
+        } else {
+            let toPush = {
+                month: month,
+                total: item["Members Count"],
+                count: 1,
+            };
+            monthlyArray.push(toPush)
+        }
+    });
+
+    monthlyArray.sort((a, b) => {
+        return a.month.localeCompare(b.month);
+    });
+
+    res.status(200).json(monthlyArray)
+});
+
 router.get('/getAverageAttendance', async (req, res) => {
     console.log("CAM called getAverageAttendance");
 
