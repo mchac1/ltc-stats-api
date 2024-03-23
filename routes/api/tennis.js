@@ -97,6 +97,138 @@ const getPrimeTimeOnCourt = (resDate, start, end) => {
     return getTimeOnCourt(newFinalStart, newFinalEnd);
 }
 
+const getReservationInstructor = (reservationRecord) => {
+    let instructor = reservationRecord['Instructor(s)']
+    if (!instructor) {
+        instructor = reservationRecord['Created By']
+    }
+    return instructor
+}
+
+router.get('/getAverageAttendance', async (req, res) => {
+    console.log("CAM called getAverageAttendance");
+
+    let reservationsQuery = {
+        "Is Event?": true,
+      }
+
+    if (req.query.ResType) {
+        reservationsQuery["Reservation Type"] = req.query.ResType;
+    }
+    if (req.query.EventName) {
+        reservationsQuery["Event Name"] = req.query.EventName;
+    }
+
+    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+    const yearlyArray = [];
+
+    reservationsArray.forEach((item) => {
+
+        // determine year by getting first 4 chars of start date
+        const year = item["Start Date / Time"].substring(0, 4);
+
+        const yearMatch = yearlyArray.find((a) => {
+            return a.year === year
+        })
+
+        if (yearMatch) {
+            yearMatch.count++;
+            yearMatch.total += item["Members Count"]
+        } else {
+            let toPush = {
+                year: year,
+                total: item["Members Count"],
+                count: 1,
+            };
+            yearlyArray.push(toPush)
+        }
+    });
+
+    res.status(200).json(yearlyArray)
+});
+
+router.get('/getLeagueAttendance', async (req, res) => {
+    console.log("CAM called getLeagueAttendance");
+
+    let reservationsQuery = {
+        "Is Event?": true,
+      }
+    if (req.query.Year) {
+        reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
+    }
+    if (req.query.ResType) {
+        reservationsQuery["Reservation Type"] = req.query.ResType;
+    }
+    if (req.query.EventName) {
+        reservationsQuery["Event Name"] = req.query.EventName;
+    }
+
+    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+    res.status(200).json(reservationsArray)
+});
+
+
+router.get('/getLeagueTopPlayers', async (req, res) => {
+    console.log("CAM called getLeagueTopPlayers");
+
+    // const eventName = req.query.EventName;
+    // const reservationType = req.query.ResType;
+
+    let reservationsQuery = {
+        // "Reservation Type": "Evening Leagues",
+        // "Event Name": eventName,
+        "Is Event?": true,
+      }
+    if (req.query.Year) {
+        reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
+    }
+    if (req.query.ResType) {
+        reservationsQuery["Reservation Type"] = req.query.ResType;
+    }
+    if (req.query.EventName) {
+        reservationsQuery["Event Name"] = req.query.EventName;
+    }
+
+    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+    let memberSummary = []
+
+    reservationsArray.forEach((oneRes) => {
+
+        // If no members associated with reservation, skip it
+        const members = oneRes.Members;
+        if (!members) { return }
+
+        // Members field contains comma-separated list of 
+        // players in that reservation. Need to parse them out.
+        // e.g. "Donna Lee Pon (#207216), Paulette Trudelle (#210277), Adriana Garcia (#209420), Sandra Harazny (#207532)"
+        let commaSplit = members.split(', ')
+
+        commaSplit.forEach((piece) => {
+            let newPieces = piece.split(' (#')
+            let memberName = newPieces[0];
+            let memberId = newPieces[1].replace(')','');;
+
+            let memberMatch = memberSummary.find(a => a.id === memberId);
+            if (memberMatch) {
+                memberMatch.count++;
+            } else {
+                let toPush = {
+                    name: memberName,
+                    id: memberId,
+                    count: 1,
+                };
+                memberSummary.push(toPush)
+            }
+        })
+    });
+
+    memberSummary.sort((a, b) => b.count - a.count);
+    res.status(200).json(memberSummary)
+});
+
 router.get('/getFamilyHours', async (req, res) => {
     console.log("CAM called getFamilyHours");
 
@@ -111,6 +243,7 @@ router.get('/getFamilyHours', async (req, res) => {
     }
 
     var membersArray = await db.getDB().collection('members').find({}).toArray();
+    // console.log(membersArray)
     var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
 
     let memberHours = []
@@ -275,6 +408,56 @@ router.get('/getMemberHours', async (req, res) => {
     res.status(200).json(memberHours)
 })
 
+router.get('/getMembers', async (req, res) => {
+    console.log("CAM called getMembers");
+
+    const year = req.query.Year;
+    const assignmentType = req.query.Type;
+
+    if (!year) {
+        res.status(200).json({})
+        return 
+    }
+
+    // text = parseInt(text, 10) + 1;
+
+    let reservationsQuery = {
+        // "Reservation Type": {
+        //   $in: ["Private Lesson"],
+        // },
+        // "Is Event?": false,
+        // "End Date": {
+        //     $in: ["2023-12-31", "2024-04-01"],
+        // },
+        
+        $or: [
+            {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+            {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+        ],
+
+        // $or: [
+        //     {"Start Date": {$gte: "2023-01-01", $lt: "2023-10-01"}},
+        //     {"End Date": {$gte: "2023-12-31", $lt: "2024-04-02"}},
+        // ],
+
+        // "Start Date": {$gte: "2022-01-01", $lt: "2022-11-01"},
+        // "End Date": {$gte: "2023-12-31", $lt: "2024-04-02"},
+        // "Member Name": "Valerie Hagen",
+        // "Membership Name": "Family Membership"
+        // "Membership Name": assignmentType
+        "Assignment Type": assignmentType,
+        "Cancelled Date": "",
+      }
+    // if (req.query.Year) {
+    //     reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
+    // }
+
+    var reservationsArray = await db.getDB().collection('memberships').find(reservationsQuery).toArray();
+
+    // let memberHours = []
+    res.status(200).json(reservationsArray)
+})
+
 router.get('/getMemberLessonHours', async (req, res) => {
     console.log("CAM called getMemberLessonHours");
 
@@ -314,10 +497,7 @@ router.get('/getMemberLessonHours', async (req, res) => {
         // If no members associated with reservation, skip it
         if (!members) { return }
 
-        let thisInstructor = oneRes['Instructor(s)']
-        if (!thisInstructor) {
-            thisInstructor = oneRes['Created By']
-        }
+        let thisInstructor = getReservationInstructor(oneRes);
 
         let commaSplit = members.split(', ')
 
@@ -360,78 +540,6 @@ router.get('/getMemberLessonHours', async (req, res) => {
     res.status(200).json(memberHours)
 })
 
-// router.get('/getMemberLessonHours', async (req, res) => {
-//     console.log("CAM called getMemberLessonHours");
-
-//     let reservationsQuery = {
-//         "Reservation Type": {
-//           $in: ["Private Lesson"],
-//         },
-//         "Is Event?": false,
-//       }
-//     if (req.query.Year) {
-//         reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
-//     }
-
-//     var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
-
-//     let memberHours = []
-
-//     reservationsArray.forEach((oneRes) => {
-
-//         // Parse time of day out of date field
-//         const startRes = oneRes['Start Date / Time'];
-//         const endRes = oneRes['End Date / Time'];
-//         const [startDate, startTimeOfDay, startAmPm] = startRes.split(' ');
-//         const startTime = `${startTimeOfDay} ${startAmPm}`;
-//         const [endDate, endTimeOfDay, endAmPm] = endRes.split(' ');
-//         const endTime = `${endTimeOfDay} ${endAmPm}`;
-
-//         // Calculate time on court in hours for this reservation
-//         const timeOnCourt = getTimeOnCourt(startTime, endTime);
-//         const primeTimeOnCourt = getPrimeTimeOnCourt(startDate, startTime, endTime);
-
-//         // Members field contains comma-separated list of 
-//         // players in that reservation. Need to parse them out.
-//         // e.g. "Donna Lee Pon (#207216), Paulette Trudelle (#210277), Adriana Garcia (#209420), Sandra Harazny (#207532)"
-//         const members = oneRes.Members;
-
-//         // If no members associated with reservation, skip it
-//         if (!members) { return }
-
-//         let commaSplit = members.split(', ')
-
-//         // Assemble array showing hours on court for each member
-//         commaSplit.forEach((piece) => {
-//             let newPieces = piece.split(' (#')
-//             let memberName = newPieces[0];
-//             let memberId = newPieces[1].replace(')','');
-
-//             let memberMatch = memberHours.find(a => a.name === memberName);
-//             if (memberMatch) {
-//                 memberMatch.count++;
-//                 memberMatch.hoursOnCourt = memberMatch.hoursOnCourt + timeOnCourt;
-//                 memberMatch.primeTimeOnCourt = memberMatch.primeTimeOnCourt + primeTimeOnCourt;
-//             } else {
-//                 let toPush = {
-//                     name: memberName,
-//                     id: memberId,
-//                     count: 1,
-//                     hoursOnCourt: timeOnCourt,
-//                     primeTimeOnCourt: primeTimeOnCourt
-//                 };
-//                 memberHours.push(toPush)
-//             }
-//         })
-//     });
-
-//     memberHours.sort((a, b) => b.hoursOnCourt - a.hoursOnCourt);
-
-//     res.status(200).json(memberHours)
-// })
-
-// CAM TODO this needs to account for records where there is no
-// Instructor(s) field. Go with Created By in that case
 router.get('/getInstructorHours', async (req, res) => {
 
     let reservationsQuery = {
@@ -464,7 +572,7 @@ router.get('/getInstructorHours', async (req, res) => {
 
         // Members field contains comma-separated list of 
         // players in that reservation. Need to parse them out.
-        const instructors = oneRes['Instructor(s)'];
+        const instructors = getReservationInstructor(oneRes);
 
         // If no members associated with reservation, skip it
         if (!instructors) { return }
@@ -643,7 +751,7 @@ router.get('/getLongestFamilyDay', async (req, res) => {
 
     courtTotals.sort((a, b) => b.hours - a.hours);
 
-    console.log(courtTotals)
+    // console.log(courtTotals)
 
     // Return top result
     res.status(200).json(courtTotals[0])
