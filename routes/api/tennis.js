@@ -105,6 +105,87 @@ const getReservationInstructor = (reservationRecord) => {
     return instructor
 }
 
+router.get('/getMemberYearlyHours', async (req, res) => {
+    console.log("CAM called getMemberYearlyHours");
+
+    const memberId = req.query.Member;
+    // const memberId = "485052"
+
+    let reservationsQuery = {
+        "Is Event?": false,
+        "Members": { $regex: memberId }
+      }
+
+    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+    const yearlyArray = [];
+
+    reservationsArray.forEach((item) => {
+
+        // Parse time of day out of date field
+        const startDate = item['Start Date / Time'];
+        const endDate = item['End Date / Time'];
+        const [delme1, startTimeOfDay, startAmPm] = startDate.split(' ');
+        const startTime = `${startTimeOfDay} ${startAmPm}`;
+        const [delme2, endTimeOfDay, endAmPm] = endDate.split(' ');
+        const endTime = `${endTimeOfDay} ${endAmPm}`;
+
+        // Calculate time on court in hours for this reservation
+        const timeOnCourt = getTimeOnCourt(startTime, endTime);
+        const primeTimeOnCourt = getPrimeTimeOnCourt(startDate, startTime, endTime);
+
+        // determine year by getting first 4 chars of start date
+        const year = item["Start Date / Time"].substring(0, 4);
+
+        const yearMatch = yearlyArray.find(a => a.year === year);
+
+        if (yearMatch) {
+            yearMatch.totalBookings++;
+            
+            yearMatch.hoursOnCourt += timeOnCourt;
+            yearMatch.primetimeHoursOnCourt += primeTimeOnCourt;
+            if (item['Reservation Type'] === "Singles") {
+                yearMatch.singlesBookings++;
+                yearMatch.singlesHours += timeOnCourt;
+            } else if (item['Reservation Type'] === "Doubles") {
+                yearMatch.doublesBookings++;
+                yearMatch.doublesHours += timeOnCourt;
+            } else {
+                yearMatch.otherBookings++;
+                yearMatch.otherHours += timeOnCourt;
+            }
+        } else {
+            let toPush = {
+                year: year,
+                hoursOnCourt: timeOnCourt,
+                primetimeHoursOnCourt: primeTimeOnCourt,
+                totalBookings: 1,
+                singlesBookings: 0,
+                singlesHours: 0,
+                doublesBookings: 0,
+                doublesHours: 0,
+                otherBookings: 0,
+                otherHours: 0,
+            };
+            if (item['Reservation Type'] === "Singles") {
+                toPush.singlesBookings = 1;
+                toPush.singlesHours = timeOnCourt;
+            } else if (item['Reservation Type'] === "Doubles") {
+                toPush.doublesBookings = 1;
+                toPush.doublesHours = timeOnCourt;
+            } else {
+                toPush.otherBookings = 1;
+                toPush.otherHours = timeOnCourt;
+            }
+            yearlyArray.push(toPush)
+        }
+    });
+
+    yearlyArray.sort((a, b) => a.year.localeCompare(b.year));
+
+    res.status(200).json(yearlyArray)
+});
+
 router.get('/getAverageMonthlyAttendance', async (req, res) => {
     console.log("CAM called getAverageMonthlyAttendance");
 
