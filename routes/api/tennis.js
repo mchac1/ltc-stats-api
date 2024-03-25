@@ -150,6 +150,9 @@ router.get('/getMemberYearlyHours', async (req, res) => {
             } else if (item['Reservation Type'] === "Doubles") {
                 yearMatch.doublesBookings++;
                 yearMatch.doublesHours += timeOnCourt;
+            } else if (item['Reservation Type'] === "Private Lesson") {
+                yearMatch.lessonBookings++;
+                yearMatch.lessonHours += timeOnCourt;
             } else {
                 yearMatch.otherBookings++;
                 yearMatch.otherHours += timeOnCourt;
@@ -164,6 +167,8 @@ router.get('/getMemberYearlyHours', async (req, res) => {
                 singlesHours: 0,
                 doublesBookings: 0,
                 doublesHours: 0,
+                lessonBookings: 0,
+                lessonHours: 0,
                 otherBookings: 0,
                 otherHours: 0,
             };
@@ -173,6 +178,9 @@ router.get('/getMemberYearlyHours', async (req, res) => {
             } else if (item['Reservation Type'] === "Doubles") {
                 toPush.doublesBookings = 1;
                 toPush.doublesHours = timeOnCourt;
+            } else if (item['Reservation Type'] === "Private Lesson") {
+                toPush.lessonBookings = 1;
+                toPush.lessonHours = timeOnCourt;
             } else {
                 toPush.otherBookings = 1;
                 toPush.otherHours = timeOnCourt;
