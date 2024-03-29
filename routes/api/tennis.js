@@ -36,6 +36,39 @@ router.get('/getReservationCountByMember', async (req, res) => {
     res.status(200).json(reservationsArray)
 })
 
+router.get('/getReservationCountByMonth', async (req, res) => {
+    console.log("CAM called getReservationCountByMonth");
+    let matchQuery = {
+        "Is Event?": false,
+      }
+    if (req.query.Year) {
+        matchQuery["Start Date / Time"] = { $regex: req.query.Year }
+    }
+
+    var reservationsArray = await db.getDB().collection('reservations').aggregate( [
+        {
+            $match: matchQuery
+        },
+        {
+          $addFields: {
+            month: {
+              $substr: ['$Start Date / Time', 5, 2]
+            }
+          }
+        },
+        {
+          $group: {
+            _id: { month: '$month' },
+            totalQuantity: { $sum: 1 }
+          }
+        }
+      ],).toArray();
+
+    reservationsArray.sort((a, b) => a._id.month.localeCompare(b._id.month));
+      
+    res.status(200).json(reservationsArray)
+})
+
 // Converts to military time
 // (e.g. 1:00 PM -> 13:00)
 const convertTime12to24 = (time12h) => {
