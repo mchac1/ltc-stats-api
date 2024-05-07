@@ -580,6 +580,255 @@ router.get('/getMemberHours', async (req, res) => {
     res.status(200).json(memberHours)
 })
 
+
+router.get('/getMembersRevenue', async (req, res) => {
+    console.log("CAM called getMembersRevenue");
+
+    // const year = req.query.Year;
+    // const assignmentType = req.query.Type;
+
+    // if (!year) {
+    //     res.status(200).json({})
+    //     return 
+    // }
+
+    let tempArray = [];
+
+    let year = '2020'
+    let reservationsQuery = {
+        
+        $or: [
+            {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+            {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+        ],
+
+        // "Assignment Type": assignmentType,
+        "Cancelled Date": "",  // ignore anything that was cancelled
+      }
+
+    var reservationsArray = await db.getDB().collection('memberships').aggregate( [
+        {
+          $match: reservationsQuery
+        },
+        {
+          $group: {
+            // _id: { "Membership Type": '$Assignment Type' },
+            // _id: { "Membership Type": '$Membership Name' },
+            _id: { "membershipType": '$Membership Name' },
+            // memType: '$Membership Name',
+            quantity: { $sum: 1 },
+            revenue: { $sum: "$Amount" }
+          },
+        },
+      ]).toArray();
+
+      tempArray.push({
+        year: year,
+        results: reservationsArray
+      })
+
+    year = '2021'
+    reservationsQuery = {
+        
+        $or: [
+            {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+            {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+        ],
+
+        // "Assignment Type": assignmentType,
+        "Cancelled Date": "",  // ignore anything that was cancelled
+      }
+
+    reservationsArray = await db.getDB().collection('memberships').aggregate( [
+        {
+          $match: reservationsQuery
+        },
+        {
+          $group: {
+            // _id: { "Membership Type": '$Assignment Type' },
+            // _id: { "Membership Type": '$Membership Name' },
+            _id: { "membershipType": '$Membership Name' },
+            // memType: '$Membership Name',
+            quantity: { $sum: 1 },
+            revenue: { $sum: "$Amount" }
+          },
+        },
+      ]).toArray();
+
+      tempArray.push({
+        year: year,
+        results: reservationsArray
+      })
+    
+    year = '2022'
+    reservationsQuery = {
+          
+          $or: [
+              {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+              {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+          ],
+  
+          // "Assignment Type": assignmentType,
+          "Cancelled Date": "",  // ignore anything that was cancelled
+        }
+  
+    reservationsArray = await db.getDB().collection('memberships').aggregate( [
+          {
+            $match: reservationsQuery
+          },
+          {
+            $group: {
+              // _id: { "Membership Type": '$Assignment Type' },
+              // _id: { "Membership Type": '$Membership Name' },
+              _id: { "membershipType": '$Membership Name' },
+              // memType: '$Membership Name',
+              quantity: { $sum: 1 },
+              revenue: { $sum: "$Amount" }
+            },
+          },
+        ]).toArray();
+  
+    tempArray.push({
+        year: year,
+        results: reservationsArray
+    })
+
+    year = '2023'
+    reservationsQuery = {
+          
+          $or: [
+              {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+              {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+          ],
+  
+          // "Assignment Type": assignmentType,
+          "Cancelled Date": "",  // ignore anything that was cancelled
+        }
+  
+    reservationsArray = await db.getDB().collection('memberships').aggregate( [
+          {
+            $match: reservationsQuery
+          },
+          {
+            $group: {
+              // _id: { "Membership Type": '$Assignment Type' },
+              // _id: { "Membership Type": '$Membership Name' },
+              _id: { "membershipType": '$Membership Name' },
+              // memType: '$Membership Name',
+              quantity: { $sum: 1 },
+              revenue: { $sum: "$Amount" }
+            },
+          },
+        ]).toArray();
+  
+    tempArray.push({
+        year: year,
+        results: reservationsArray
+    })
+
+    // db.inventory.distinct( "dept" )
+    const memTypes = await db.getDB().collection('memberships').distinct( "Membership Name" )
+    // console.log('CAM bonkers')
+    // console.log(bonkers)
+
+
+    // let stock = "Test"
+    // const memTypes = [
+    //     "Adult Membership",
+    //     "Junior Membership (15 and under)",
+    //     "Staff Membership",
+    //     "Family Membership",
+    //     "End of Season 'Stragglers'",
+    //     "Smash Sponsorship",
+    //     "Ace Sponsorship",
+    //     "Full-Time Student Membership (Ages 16-17)",
+    //     "Full-Time Student Membership (Ages 18-23)",
+    //     "LTC Supporter"
+    // ]
+
+    const finalArray = tempArray.map((a) => {
+
+        const quantities = {}
+        const revenues = {}
+
+        memTypes.forEach((memType) => {
+            const thisOne = a.results.find(b => b._id.membershipType === memType)
+            if (thisOne) {
+                quantities[memType] = thisOne.quantity
+                revenues[memType] = thisOne.revenue
+            }
+        })
+
+        return {
+            Year: a.year,
+            Quantity: quantities,
+            Revenue: revenues,
+        }
+    })
+
+    res.status(200).json(finalArray)
+})
+// router.get('/getMembersRevenue', async (req, res) => {
+//     console.log("CAM called getMembersRevenue");
+
+//     const year = req.query.Year;
+//     const assignmentType = req.query.Type;
+
+//     if (!year) {
+//         res.status(200).json({})
+//         return 
+//     }
+
+//     // text = parseInt(text, 10) + 1;
+
+//     let reservationsQuery = {
+        
+//         $or: [
+//             {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+//             {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+//         ],
+
+//         // "Assignment Type": assignmentType,
+//         "Cancelled Date": "",  // ignore anything that was cancelled
+//       }
+
+//     // var reservationsArray = await db.getDB().collection('memberships').find(reservationsQuery).toArray();
+//     // console.log(reservationsArray)
+
+//     var reservationsArray = await db.getDB().collection('memberships').aggregate( [
+//         {
+//           $match: reservationsQuery
+//         },
+//         {
+//           $group: {
+//             // _id: { "Membership Type": '$Assignment Type' },
+//             _id: { "Membership Type": '$Membership Name' },
+//             quantity: { $sum: 1 },
+//             revenue: { $sum: "$Amount" }
+//           },
+//         },
+//       ]).toArray();
+
+
+
+//     // let memberMatch = reservationsArray.find((a) => {
+//     //     // return a["Member Name"] === 'Chad McHardy'
+//     //     return a.Amount === 725
+//     // })
+//     // console.log(memberMatch)
+
+//     // const initialValue = 0;
+//     // const sumWithInitial = reservationsArray.reduce(
+//     //     (accumulator, currentValue) => accumulator + currentValue.Amount,
+//     //     initialValue,
+//     // );
+
+//     // console.log(`sumWithInitial: ${sumWithInitial}`)
+
+//     // let memberHours = []
+//     res.status(200).json(reservationsArray)
+// })
+
 router.get('/getMembers', async (req, res) => {
     console.log("CAM called getMembers");
 
@@ -617,7 +866,9 @@ router.get('/getMembers', async (req, res) => {
         // "Member Name": "Valerie Hagen",
         // "Membership Name": "Family Membership"
         // "Membership Name": assignmentType
-        "Assignment Type": assignmentType,
+
+
+        // "Assignment Type": assignmentType,
         "Cancelled Date": "",
       }
     // if (req.query.Year) {
@@ -625,6 +876,13 @@ router.get('/getMembers', async (req, res) => {
     // }
 
     var reservationsArray = await db.getDB().collection('memberships').find(reservationsQuery).toArray();
+
+
+    let memberMatch = reservationsArray.find((a) => {
+        // return a["Member Name"] === 'Chad McHardy'
+        return a["Member Name"] === 'Craig Reed'
+    })
+    console.log(memberMatch)
 
     // let memberHours = []
     res.status(200).json(reservationsArray)
