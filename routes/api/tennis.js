@@ -768,66 +768,464 @@ router.get('/getMembersRevenue', async (req, res) => {
 
     res.status(200).json(finalArray)
 })
-// router.get('/getMembersRevenue', async (req, res) => {
-//     console.log("CAM called getMembersRevenue");
-
-//     const year = req.query.Year;
-//     const assignmentType = req.query.Type;
-
-//     if (!year) {
-//         res.status(200).json({})
-//         return 
-//     }
-
-//     // text = parseInt(text, 10) + 1;
-
-//     let reservationsQuery = {
-        
-//         $or: [
-//             {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
-//             {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
-//         ],
-
-//         // "Assignment Type": assignmentType,
-//         "Cancelled Date": "",  // ignore anything that was cancelled
-//       }
-
-//     // var reservationsArray = await db.getDB().collection('memberships').find(reservationsQuery).toArray();
-//     // console.log(reservationsArray)
-
-//     var reservationsArray = await db.getDB().collection('memberships').aggregate( [
-//         {
-//           $match: reservationsQuery
-//         },
-//         {
-//           $group: {
-//             // _id: { "Membership Type": '$Assignment Type' },
-//             _id: { "Membership Type": '$Membership Name' },
-//             quantity: { $sum: 1 },
-//             revenue: { $sum: "$Amount" }
-//           },
-//         },
-//       ]).toArray();
 
 
+// CAM TODO this one needs a loop
+router.get('/getMembersBreakdown', async (req, res) => {
 
-//     // let memberMatch = reservationsArray.find((a) => {
-//     //     // return a["Member Name"] === 'Chad McHardy'
-//     //     return a.Amount === 725
-//     // })
-//     // console.log(memberMatch)
+    let tempArray = [];
+    let year = '2020'
+    let reservationsQuery = {
+        $or: [
+            {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+            {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+        ],
+        "Cancelled Date": "",  // ignore anything that was cancelled
+      }
 
-//     // const initialValue = 0;
-//     // const sumWithInitial = reservationsArray.reduce(
-//     //     (accumulator, currentValue) => accumulator + currentValue.Amount,
-//     //     initialValue,
-//     // );
+    var reservationsArray = await db.getDB().collection('memberships').aggregate( [
+        {
+          $match: reservationsQuery
+        },
+        {
+          $group: {
+            _id: { "membershipType": '$Membership Name' },
+            quantity: { $sum: 1 },
+            revenue: { $sum: "$Amount" }
+          },
+        },
+      ]).toArray();
 
-//     // console.log(`sumWithInitial: ${sumWithInitial}`)
+      let newTempArray = []
 
-//     // let memberHours = []
-//     res.status(200).json(reservationsArray)
-// })
+      reservationsArray.forEach((a) => {
+        if (a._id.membershipType.includes('Junior Membership')) {
+            const tempMatch = newTempArray.find((b) => {
+                return b._id.membershipType === 'Junior Membership'
+            })
+            if (tempMatch) {
+                tempMatch.quantity += a.quantity
+                tempMatch.revenue += a.revenue
+            } else {
+                newTempArray.push(
+                    {
+                        _id: { membershipType: 'Junior Membership' },
+                        quantity: a.quantity,
+                        revenue: a.revenue
+                    }
+                )
+            }
+        } else if (a._id.membershipType.includes('Instant Tennis')) {
+            const tempMatch = newTempArray.find((b) => {
+                return b._id.membershipType === 'Instant Tennis Graduate'
+            })
+            if (tempMatch) {
+                tempMatch.quantity += a.quantity
+                tempMatch.revenue += a.revenue
+            } else {
+                newTempArray.push(
+                    {
+                        _id: { membershipType: 'Instant Tennis Graduate' },
+                        quantity: a.quantity,
+                        revenue: a.revenue
+                    }
+                )
+            }
+        } else if (a._id.membershipType.includes('Student Membership')) {
+            const tempMatch = newTempArray.find((b) => {
+                return b._id.membershipType === 'Student Membership'
+            })
+            if (tempMatch) {
+                tempMatch.quantity += a.quantity
+                tempMatch.revenue += a.revenue
+            } else {
+                newTempArray.push(
+                    {
+                        _id: { membershipType: 'Student Membership' },
+                        quantity: a.quantity,
+                        revenue: a.revenue
+                    }
+                )
+            }
+        } else {
+            newTempArray.push(a)
+        }
+      })
+
+    tempArray.push({
+        year: year,
+        results: newTempArray
+    })
+
+    year = '2021'
+    reservationsQuery = {
+        $or: [
+            {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+            {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+        ],
+        "Cancelled Date": "",  // ignore anything that was cancelled
+      }
+
+    reservationsArray = await db.getDB().collection('memberships').aggregate( [
+        {
+          $match: reservationsQuery
+        },
+        {
+          $group: {
+            _id: { "membershipType": '$Membership Name' },
+            quantity: { $sum: 1 },
+            revenue: { $sum: "$Amount" }
+          },
+        },
+      ]).toArray();
+
+      newTempArray = []
+
+      reservationsArray.forEach((a) => {
+        if (a._id.membershipType.includes('Junior Membership')) {
+            const tempMatch = newTempArray.find((b) => {
+                return b._id.membershipType === 'Junior Membership'
+            })
+            if (tempMatch) {
+                tempMatch.quantity += a.quantity
+                tempMatch.revenue += a.revenue
+            } else {
+                newTempArray.push(
+                    {
+                        _id: { membershipType: 'Junior Membership' },
+                        quantity: a.quantity,
+                        revenue: a.revenue
+                    }
+                )
+            }
+        } else if (a._id.membershipType.includes('Instant Tennis')) {
+            const tempMatch = newTempArray.find((b) => {
+                return b._id.membershipType === 'Instant Tennis Graduate'
+            })
+            if (tempMatch) {
+                tempMatch.quantity += a.quantity
+                tempMatch.revenue += a.revenue
+            } else {
+                newTempArray.push(
+                    {
+                        _id: { membershipType: 'Instant Tennis Graduate' },
+                        quantity: a.quantity,
+                        revenue: a.revenue
+                    }
+                )
+            }
+        } else if (a._id.membershipType.includes('Student Membership')) {
+            const tempMatch = newTempArray.find((b) => {
+                return b._id.membershipType === 'Student Membership'
+            })
+            if (tempMatch) {
+                tempMatch.quantity += a.quantity
+                tempMatch.revenue += a.revenue
+            } else {
+                newTempArray.push(
+                    {
+                        _id: { membershipType: 'Student Membership' },
+                        quantity: a.quantity,
+                        revenue: a.revenue
+                    }
+                )
+            }
+        } else {
+            newTempArray.push(a)
+        }
+      })
+
+    tempArray.push({
+        year: year,
+        results: newTempArray
+    })
+    
+    year = '2022'
+    reservationsQuery = {
+          $or: [
+              {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+              {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+          ],
+          "Cancelled Date": "",  // ignore anything that was cancelled
+        }
+  
+    reservationsArray = await db.getDB().collection('memberships').aggregate( [
+          {
+            $match: reservationsQuery
+          },
+          {
+            $group: {
+              _id: { "membershipType": '$Membership Name' },
+              quantity: { $sum: 1 },
+              revenue: { $sum: "$Amount" }
+            },
+          },
+        ]).toArray();
+  
+
+        newTempArray = []
+
+        reservationsArray.forEach((a) => {
+          if (a._id.membershipType.includes('Junior Membership')) {
+              const tempMatch = newTempArray.find((b) => {
+                  return b._id.membershipType === 'Junior Membership'
+              })
+              if (tempMatch) {
+                  tempMatch.quantity += a.quantity
+                  tempMatch.revenue += a.revenue
+              } else {
+                  newTempArray.push(
+                      {
+                          _id: { membershipType: 'Junior Membership' },
+                          quantity: a.quantity,
+                          revenue: a.revenue
+                      }
+                  )
+              }
+          } else if (a._id.membershipType.includes('Instant Tennis')) {
+              const tempMatch = newTempArray.find((b) => {
+                  return b._id.membershipType === 'Instant Tennis Graduate'
+              })
+              if (tempMatch) {
+                  tempMatch.quantity += a.quantity
+                  tempMatch.revenue += a.revenue
+              } else {
+                  newTempArray.push(
+                      {
+                          _id: { membershipType: 'Instant Tennis Graduate' },
+                          quantity: a.quantity,
+                          revenue: a.revenue
+                      }
+                  )
+              }
+          } else if (a._id.membershipType.includes('Student Membership')) {
+              const tempMatch = newTempArray.find((b) => {
+                  return b._id.membershipType === 'Student Membership'
+              })
+              if (tempMatch) {
+                  tempMatch.quantity += a.quantity
+                  tempMatch.revenue += a.revenue
+              } else {
+                  newTempArray.push(
+                      {
+                          _id: { membershipType: 'Student Membership' },
+                          quantity: a.quantity,
+                          revenue: a.revenue
+                      }
+                  )
+              }
+          } else {
+              newTempArray.push(a)
+          }
+        })
+
+    tempArray.push({
+        year: year,
+        results: newTempArray
+    })
+
+    year = '2023'
+    reservationsQuery = {
+          $or: [
+              {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+              {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+          ],
+          "Cancelled Date": "",  // ignore anything that was cancelled
+        }
+  
+    reservationsArray = await db.getDB().collection('memberships').aggregate( [
+          {
+            $match: reservationsQuery
+          },
+          {
+            $group: {
+              _id: { "membershipType": '$Membership Name' },
+              quantity: { $sum: 1 },
+              revenue: { $sum: "$Amount" }
+            },
+          },
+        ]).toArray();
+  
+        newTempArray = []
+
+        reservationsArray.forEach((a) => {
+          if (a._id.membershipType.includes('Junior Membership')) {
+              const tempMatch = newTempArray.find((b) => {
+                  return b._id.membershipType === 'Junior Membership'
+              })
+              if (tempMatch) {
+                  tempMatch.quantity += a.quantity
+                  tempMatch.revenue += a.revenue
+              } else {
+                  newTempArray.push(
+                      {
+                          _id: { membershipType: 'Junior Membership' },
+                          quantity: a.quantity,
+                          revenue: a.revenue
+                      }
+                  )
+              }
+          } else if (a._id.membershipType.includes('Instant Tennis')) {
+              const tempMatch = newTempArray.find((b) => {
+                  return b._id.membershipType === 'Instant Tennis Graduate'
+              })
+              if (tempMatch) {
+                  tempMatch.quantity += a.quantity
+                  tempMatch.revenue += a.revenue
+              } else {
+                  newTempArray.push(
+                      {
+                          _id: { membershipType: 'Instant Tennis Graduate' },
+                          quantity: a.quantity,
+                          revenue: a.revenue
+                      }
+                  )
+              }
+          } else if (a._id.membershipType.includes('Student Membership')) {
+              const tempMatch = newTempArray.find((b) => {
+                  return b._id.membershipType === 'Student Membership'
+              })
+              if (tempMatch) {
+                  tempMatch.quantity += a.quantity
+                  tempMatch.revenue += a.revenue
+              } else {
+                  newTempArray.push(
+                      {
+                          _id: { membershipType: 'Student Membership' },
+                          quantity: a.quantity,
+                          revenue: a.revenue
+                      }
+                  )
+              }
+          } else {
+              newTempArray.push(a)
+          }
+        })
+
+    tempArray.push({
+        year: year,
+        results: newTempArray
+    })
+
+    year = '2024'
+    reservationsQuery = {
+          $or: [
+              {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+              {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+          ],
+          "Cancelled Date": "",  // ignore anything that was cancelled
+        }
+  
+    reservationsArray = await db.getDB().collection('memberships').aggregate( [
+          {
+            $match: reservationsQuery
+          },
+          {
+            $group: {
+              _id: { "membershipType": '$Membership Name' },
+              quantity: { $sum: 1 },
+              revenue: { $sum: "$Amount" }
+            },
+          },
+        ]).toArray();
+  
+        newTempArray = []
+
+        reservationsArray.forEach((a) => {
+          if (a._id.membershipType.includes('Junior Membership')) {
+              const tempMatch = newTempArray.find((b) => {
+                  return b._id.membershipType === 'Junior Membership'
+              })
+              if (tempMatch) {
+                  tempMatch.quantity += a.quantity
+                  tempMatch.revenue += a.revenue
+              } else {
+                  newTempArray.push(
+                      {
+                          _id: { membershipType: 'Junior Membership' },
+                          quantity: a.quantity,
+                          revenue: a.revenue
+                      }
+                  )
+              }
+          } else if (a._id.membershipType.includes('Instant Tennis')) {
+              const tempMatch = newTempArray.find((b) => {
+                  return b._id.membershipType === 'Instant Tennis Graduate'
+              })
+              if (tempMatch) {
+                  tempMatch.quantity += a.quantity
+                  tempMatch.revenue += a.revenue
+              } else {
+                  newTempArray.push(
+                      {
+                          _id: { membershipType: 'Instant Tennis Graduate' },
+                          quantity: a.quantity,
+                          revenue: a.revenue
+                      }
+                  )
+              }
+          } else if (a._id.membershipType.includes('Student Membership')) {
+              const tempMatch = newTempArray.find((b) => {
+                  return b._id.membershipType === 'Student Membership'
+              })
+              if (tempMatch) {
+                  tempMatch.quantity += a.quantity
+                  tempMatch.revenue += a.revenue
+              } else {
+                  newTempArray.push(
+                      {
+                          _id: { membershipType: 'Student Membership' },
+                          quantity: a.quantity,
+                          revenue: a.revenue
+                      }
+                  )
+              }
+          } else {
+              newTempArray.push(a)
+          }
+        })
+
+    tempArray.push({
+        year: year,
+        results: newTempArray
+    })
+
+    const memTypes = [
+        "Adult Membership",
+        "Junior Membership",
+        "Staff Membership",
+        "Family Membership",
+        "End of Season 'Stragglers'",
+        "Smash Sponsorship",
+        "Ace Sponsorship",
+        "Student Membership",
+        "Instant Tennis Graduate",
+        "LTC Supporter"
+    ]
+
+    const finalArray = tempArray.map((a) => {
+
+        const quantities = {}
+        const revenues = {}
+
+        memTypes.forEach((memType) => {
+            const thisOne = a.results.find(b => b._id.membershipType === memType)
+            if (thisOne) {
+                quantities[memType] = thisOne.quantity
+                revenues[memType] = thisOne.revenue
+            }
+        })
+
+        return {
+            Year: a.year,
+            Quantity: quantities,
+            Revenue: revenues,
+        }
+    })
+
+    res.status(200).json(finalArray)
+})
+
 
 router.get('/getMembers', async (req, res) => {
     console.log("CAM called getMembers");
