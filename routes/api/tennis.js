@@ -3,6 +3,9 @@ const db = require("../../db");
 
 const router = Router()
 
+const AM_STR = ' AM'
+const PM_STR = ' PM'
+
 
 router.get('/', (req, res) => {
     res.status(200).json({ name: 'Jestin' })
@@ -39,7 +42,7 @@ router.get('/getReservationCountByMember', async (req, res) => {
 router.get('/getReservationCountByMonth', async (req, res) => {
     console.log("CAM called getReservationCountByMonth");
     let matchQuery = {
-        "Is Event?": "FALSE",
+        "Is Event?": { $in: ["FALSE", false] }
       }
     if (req.query.Year) {
         matchQuery["Start Date / Time"] = { $regex: req.query.Year }
@@ -119,12 +122,25 @@ function getTimeBlocks(startTime, endTime) {
 }
 
 
+const getCourtTimeBlock = (start, end) => {
+    if (start.includes(AM_STR) || start.includes(PM_STR) || end.includes(AM_STR) || end.includes(PM_STR)) {  // AM/PM style
+        return ( new Date("1970-1-1 " + convertTime12to24(end)) - new Date("1970-1-1 " + convertTime12to24(start)) ) / 1000 / 60 / 60;
+    }
+
+    // Must be military time
+    return ( new Date("1970-1-1 " + end) - new Date("1970-1-1 " + start) ) / 1000 / 60 / 60; 
+}
+
 const getTimeOnCourt = (start, end) => {
     return ( new Date("1970-1-1 " + convertTime12to24(end)) - new Date("1970-1-1 " + convertTime12to24(start)) ) / 1000 / 60 / 60;
 }
 
 const getTimeOnCourtMil = (start, end) => {
     return ( new Date("1970-1-1 " + end) - new Date("1970-1-1 " + start) ) / 1000 / 60 / 60;
+}
+
+const getTimeOnCourtNew = (start, end) => {
+    return ( new Date(end) - new Date(start) ) / 1000 / 60 / 60;
 }
 
 const getPrimeTimeOnCourt = (resDate, start, end) => {
@@ -173,8 +189,10 @@ const getPrimeTimeOnCourtMil = (resDate, start, end) => {
     const primeTimeStart = '17:00';
     const primeTimeEnd = '21:00';
     const weekdays = [ 0, 1, 2, 3, 4 ];
-    const theStart = start;
-    const theEnd = end;
+    const theStart = convertTime12to24(start);
+    const theEnd = convertTime12to24(end);
+    // const theStart = start;
+    // const theEnd = end;
     const theDate = new Date(resDate);
 
     // No prime time on weekends
@@ -202,7 +220,67 @@ const getPrimeTimeOnCourtMil = (resDate, start, end) => {
         return 0;
     }
 
+    // console.log(newFinalStart)
+    // console.log(newFinalEnd)
+
     return getTimeOnCourtMil(newFinalStart, newFinalEnd);
+    // return getCourtTimeBlock(newFinalStart, newFinalEnd);
+}
+
+const getPrimeTimeNew = (start, end) => {
+
+    const primeTimeStartNum = 16;
+    const primeTimeEndNum = 20;
+    const primeTimeStart = '16:00';
+    const primeTimeEnd = '20:00';
+    const weekdays = [ 1, 2, 3, 4, 5 ];  // Monday to Friday
+    let theStart = null;
+    let theEnd = null;
+
+    // Get military time if not already in that format
+    if (start.includes(AM_STR) || start.includes(PM_STR)) {
+        const [startDay, startTimeOfDay, startAmPm] = start.split(' ');
+        const startTime = `${startTimeOfDay} ${startAmPm}`;
+        theStart = convertTime12to24(startTime);
+        const [endDay, endTimeOfDay, endAmPm] = end.split(' ');
+        const endTime = `${endTimeOfDay} ${endAmPm}`;
+        theEnd = convertTime12to24(endTime);
+    } else {
+        const [startDay, startTimeOfDay] = start.split(' ');
+        theStart = startTimeOfDay
+        const [endDay, endTimeOfDay] = end.split(' ');
+        theEnd = endTimeOfDay
+    }
+
+    const theDate = new Date(start);
+
+    // No prime time on weekends
+    const isWeekday = weekdays.includes(theDate.getDay());
+    if (!isWeekday) {
+        return 0;
+    }
+
+    const [startHours, startMinutes] = theStart.split(':');
+    const startsInPrimeTime = parseInt(startHours) >= primeTimeStartNum && parseInt(startHours) <= primeTimeEndNum;
+    const [endHours, endMinutes] = theEnd.split(':');
+    const endsInPrimeTime = parseInt(endHours) >= primeTimeStartNum && parseInt(endHours) <= primeTimeEndNum;
+
+    let newFinalStart = primeTimeStart;
+    let newFinalEnd = primeTimeEnd;
+
+    if (startsInPrimeTime && endsInPrimeTime) {
+        newFinalStart = theStart;
+        newFinalEnd = theEnd;
+    } else if (startsInPrimeTime) {
+        newFinalStart = theStart;
+    } else if (endsInPrimeTime) {
+        newFinalEnd = theEnd;
+    } else {
+        return 0;
+    }
+
+    return getTimeOnCourtMil(newFinalStart, newFinalEnd);
+    // return getCourtTimeBlock(newFinalStart, newFinalEnd);
 }
 
 const getReservationInstructor = (reservationRecord) => {
@@ -213,15 +291,64 @@ const getReservationInstructor = (reservationRecord) => {
     return instructor
 }
 
+
+router.get('/primeTimeTest', async (req, res) => {
+    console.log("CAM called primeTimeTest");
+
+    // case 1
+    // let startDate = "2025-11-11 16:00";
+    // let endDate = "2025-11-11 17:00";
+
+    // case 2
+    // let startDate = "2025-11-11 19:30";
+    // let endDate = "2025-11-11 21:00";
+    // let startDate = "2025-11-11 7:30 PM";
+    // let endDate = "2025-11-11 10:00 PM";
+
+    // case 3
+    // let startDate = "2025-11-11 15:30";
+    // let endDate = "2025-11-11 18:00";
+    let startDate = "2025-11-11 3:30 PM";
+    let endDate = "2025-11-11 6:00 PM";
+
+    // case 4
+    // let startDate = "2025-11-11 7:30";
+    // let endDate = "2025-11-11 9:00";
+    // let startDate = "2025-11-11 7:30 AM";
+    // let endDate = "2025-11-11 9:00 AM";
+
+    const yimeOnCourt = getTimeOnCourtNew(startDate, endDate);
+    console.log(yimeOnCourt)
+
+
+    // const primeTimeOnCourt = getPrimeTimeNew(startDate, endDate);
+    // console.log(primeTimeOnCourt)
+
+    // const [delme1, startTime, startAmPm] = startDate.split(' ');
+    // console.log(`${startTime} ${startAmPm}`)
+    // const [delme2, endTime, endAmPm] = endDate.split(' ');
+    // console.log(`${endTime} ${endAmPm}`)
+
+    // const theDate = new Date(startDate);
+
+    // console.log(theDate)
+    // console.log(theDate.getDay())
+
+    // const primeTimeOnCourt = getPrimeTimeOnCourtMil(startDate, startTime, endTime);
+
+
+    
+
+    res.status(200).json({})
+});
+
 router.get('/getMemberYearlyHours', async (req, res) => {
     console.log("CAM called getMemberYearlyHours");
 
     const memberId = req.query.Member;
-    // const memberId = "485052"
 
     let reservationsQuery = {
-        // "Is Event?": false,
-        "Is Event?": "FALSE",
+        "Is Event?": { $in: ["FALSE", false] },
         "Members": { $regex: memberId }
       }
 
@@ -234,14 +361,10 @@ router.get('/getMemberYearlyHours', async (req, res) => {
         // Parse time of day out of date field
         const startDate = item['Start Date / Time'];
         const endDate = item['End Date / Time'];
-        const [delme1, startTime, startAmPm] = startDate.split(' ');
-        // const startTime = `${startTimeOfDay} ${startAmPm}`;
-        const [delme2, endTime, endAmPm] = endDate.split(' ');
-        // const endTime = `${endTimeOfDay} ${endAmPm}`;
 
         // Calculate time on court in hours for this reservation
-        const timeOnCourt = getTimeOnCourtMil(startTime, endTime);
-        const primeTimeOnCourt = getPrimeTimeOnCourtMil(startDate, startTime, endTime);
+        const timeOnCourt = getTimeOnCourtNew(startDate, endDate);
+        const primeTimeOnCourt = getPrimeTimeNew(startDate, endDate);
 
         // determine year by getting first 4 chars of start date
         const year = item["Start Date / Time"].substring(0, 4);
@@ -307,15 +430,14 @@ router.get('/getAverageMonthlyAttendance', async (req, res) => {
     console.log("CAM called getAverageMonthlyAttendance");
 
     let reservationsQuery = {
-        // "Is Event?": true,
-        "Is Event?": "TRUE",
+        "Is Event?": { $in: ["TRUE", true] },
       }
 
     if (req.query.ResType) {
-        reservationsQuery["Reservation Type"] = req.query.ResType;
+        reservationsQuery["Reservation Type"] = req.query.ResType;  // e.g. "Evening Leagues"
     }
     if (req.query.EventName) {
-        reservationsQuery["Event Name"] = req.query.EventName;
+        reservationsQuery["Event Name"] = req.query.EventName;  // e.g. "Daytime League"
     }
     if (req.query.Year) {
         reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
@@ -358,7 +480,7 @@ router.get('/getAverageAttendance', async (req, res) => {
     console.log("CAM called getAverageAttendance");
 
     let reservationsQuery = {
-        "Is Event?": "TRUE",
+        "Is Event?": { $in: ["TRUE", true] },
       }
 
     if (req.query.ResType) {
@@ -397,38 +519,32 @@ router.get('/getAverageAttendance', async (req, res) => {
     res.status(200).json(yearlyArray)
 });
 
-router.get('/getLeagueAttendance', async (req, res) => {
-    console.log("CAM called getLeagueAttendance");
+// router.get('/getLeagueAttendance', async (req, res) => {
+//     console.log("CAM called getLeagueAttendance");
 
-    let reservationsQuery = {
-        "Is Event?": "TRUE",
-      }
-    if (req.query.Year) {
-        reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
-    }
-    if (req.query.ResType) {
-        reservationsQuery["Reservation Type"] = req.query.ResType;
-    }
-    if (req.query.EventName) {
-        reservationsQuery["Event Name"] = req.query.EventName;
-    }
+//     let reservationsQuery = {
+//         "Is Event?": "TRUE",
+//       }
+//     if (req.query.Year) {
+//         reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
+//     }
+//     if (req.query.ResType) {
+//         reservationsQuery["Reservation Type"] = req.query.ResType;
+//     }
+//     if (req.query.EventName) {
+//         reservationsQuery["Event Name"] = req.query.EventName;
+//     }
 
-    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+//     var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
 
-    res.status(200).json(reservationsArray)
-});
-
+//     res.status(200).json(reservationsArray)
+// });
 
 router.get('/getLeagueTopPlayers', async (req, res) => {
     console.log("CAM called getLeagueTopPlayers");
 
-    // const eventName = req.query.EventName;
-    // const reservationType = req.query.ResType;
-
     let reservationsQuery = {
-        // "Reservation Type": "Evening Leagues",
-        // "Event Name": eventName,
-        "Is Event?": "TRUE",
+        "Is Event?": { $in: ["TRUE", true] },
       }
     if (req.query.Year) {
         reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
@@ -478,6 +594,7 @@ router.get('/getLeagueTopPlayers', async (req, res) => {
     res.status(200).json(memberSummary)
 });
 
+
 router.get('/getFamilyHours', async (req, res) => {
     console.log("CAM called getFamilyHours");
 
@@ -485,14 +602,13 @@ router.get('/getFamilyHours', async (req, res) => {
         "Reservation Type": {
           $in: ["Singles", "Doubles", "Backboard (only court 8)", "Ball Machine"],
         },
-        "Is Event?": "FALSE",
+        "Is Event?": { $in: ["FALSE", false] },
       }
     if (req.query.Year) {
         reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
     }
 
     var membersArray = await db.getDB().collection('members').find({}).toArray();
-    // console.log(membersArray)
     var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
 
     let memberHours = []
@@ -506,14 +622,10 @@ router.get('/getFamilyHours', async (req, res) => {
         // Parse time of day out of date field
         const startDate = oneRes['Start Date / Time'];
         const endDate = oneRes['End Date / Time'];
-        const [delme1, startTime, startAmPm] = startDate.split(' ');
-        // const startTime = `${startTimeOfDay} ${startAmPm}`;
-        const [delme2, endTime, endAmPm] = endDate.split(' ');
-        // const endTime = `${endTimeOfDay} ${endAmPm}`;
 
         // Calculate time on court in hours for this reservation
-        const timeOnCourt = getTimeOnCourtMil(startTime, endTime);
-        const primeTimeOnCourt = getPrimeTimeOnCourtMil(startDate, startTime, endTime);
+        const timeOnCourt = getTimeOnCourtNew(startDate, endDate);
+        const primeTimeOnCourt = getPrimeTimeNew(startDate, endDate);
 
         // Members field contains comma-separated list of 
         // players in that reservation. Need to parse them out.
@@ -527,7 +639,6 @@ router.get('/getFamilyHours', async (req, res) => {
             let memberId = newPieces[1].replace(')','');;
 
             let memberMatch = memberHours.find(a => a.name === memberName);
-            // let memberMatch = memberHours.find(a => a.id === memberId);
             if (memberMatch) {
                 memberMatch.count++;
                 memberMatch.hoursOnCourt = memberMatch.hoursOnCourt + timeOnCourt;
@@ -544,8 +655,6 @@ router.get('/getFamilyHours', async (req, res) => {
             }
         })
     });
-
-    // memberHours.sort((a, b) => b.hoursOnCourt - a.hoursOnCourt);
 
     const famsArray = [];
 
@@ -592,13 +701,11 @@ router.get('/getMemberHours', async (req, res) => {
         "Reservation Type": {
           $in: ["Singles", "Doubles", "Backboard (only court 8)", "Ball Machine"],
         },
-        "Is Event?": "FALSE",
+        "Is Event?": { $in: ["FALSE", false] },
       }
     if (req.query.Year) {
         reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
     }
-
-    // reservationsQuery["Created By"] = { $regex: "Chad McHardy" }
 
     var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
 
@@ -607,16 +714,12 @@ router.get('/getMemberHours', async (req, res) => {
     reservationsArray.forEach((oneRes) => {
 
         // Parse time of day out of date field
-        const startRes = oneRes['Start Date / Time'];
-        const endRes = oneRes['End Date / Time'];
-        const [startDate, startTime, startAmPm] = startRes.split(' ');
-        // const startTime = `${startTimeOfDay} ${startAmPm}`;
-        const [endDate, endTime, endAmPm] = endRes.split(' ');
-        // const endTime = `${endTimeOfDay} ${endAmPm}`;
+        const startDate = oneRes['Start Date / Time'];
+        const endDate = oneRes['End Date / Time'];
 
         // Calculate time on court in hours for this reservation
-        const timeOnCourt = getTimeOnCourtMil(startTime, endTime);
-        const primeTimeOnCourt = getPrimeTimeOnCourtMil(startDate, startTime, endTime);
+        const timeOnCourt = getTimeOnCourtNew(startDate, endDate);
+        const primeTimeOnCourt = getPrimeTimeNew(startDate, endDate);
 
         // Members field contains comma-separated list of 
         // players in that reservation. Need to parse them out.
@@ -655,6 +758,134 @@ router.get('/getMemberHours', async (req, res) => {
     memberHours.sort((a, b) => b.hoursOnCourt - a.hoursOnCourt);
 
     res.status(200).json(memberHours)
+})
+
+
+const parseDate = (dateString) => {
+    const [year, month, day] = dateString.split(" ")[0].split("-").map(Number);
+    // return new Date(year, month - 1, day); // Month is 0-based
+    return `${year}${month}${day}`; // Month is 0-based
+}
+
+const getLeagueDates = async (year) => {
+    let reservationsQuery = {
+        "Reservation Type": {
+          $in: ["Evening Leagues", "Team Tennis"],
+        },
+        "Is Event?": { $in: ["TRUE", true] },
+      }
+    if (year) {
+        reservationsQuery["Start Date / Time"] = { $regex: year }
+    }
+
+    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+    let memberHours = []
+    const eveningLeagueDates = new Set();
+
+    reservationsArray.forEach((oneRes) => {
+        eveningLeagueDates.add(parseDate(oneRes['Start Date / Time']))
+    });
+
+    return eveningLeagueDates
+}
+
+
+router.get('/getLeagueDates', async (req, res) => {
+
+    console.log("CAM called getLeagueDates");
+
+    let leagueDates = null
+
+    if (req.query.Year) {
+        leagueDates = await getLeagueDates(req.query.Year)
+    } else {
+        leagueDates = await getLeagueDates()
+    }
+
+    // const pritchy = await getLeagueDates('2024')
+
+    console.log(leagueDates)
+
+    res.status(200).json({})
+    // res.status(200).json(memberHours)
+
+});
+
+router.get('/getEveningLeagueDates', async (req, res) => {
+    console.log("CAM called getEveningLeagueDates");
+
+    let reservationsQuery = {
+        "Reservation Type": {
+          $in: ["Evening Leagues", "Team Tennis"],
+        },
+        "Is Event?": { $in: ["TRUE", true] },
+      }
+    if (req.query.Year) {
+        reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
+    }
+
+    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+    let memberHours = []
+    const eveningLeagueDates = new Set();
+
+    reservationsArray.forEach((oneRes) => {
+
+        eveningLeagueDates.add(parseDate(oneRes['Start Date / Time']))
+
+    //     // Parse time of day out of date field
+    //     const startRes = oneRes['Start Date / Time'];
+    //     const endRes = oneRes['End Date / Time'];
+    //     const [startDate, startTime, startAmPm] = startRes.split(' ');
+    //     // const startTime = `${startTimeOfDay} ${startAmPm}`;
+    //     const [endDate, endTime, endAmPm] = endRes.split(' ');
+    //     // const endTime = `${endTimeOfDay} ${endAmPm}`;
+
+    //     // Calculate time on court in hours for this reservation
+    //     const timeOnCourt = getTimeOnCourtMil(startTime, endTime);
+    //     const primeTimeOnCourt = getPrimeTimeOnCourtMil(startDate, startTime, endTime);
+
+    //     // Members field contains comma-separated list of 
+    //     // players in that reservation. Need to parse them out.
+    //     // e.g. "Donna Lee Pon (#207216), Paulette Trudelle (#210277), Adriana Garcia (#209420), Sandra Harazny (#207532)"
+    //     const members = oneRes.Members;
+
+    //     // If no members associated with reservation, skip it
+    //     if (!members) { return }
+
+    //     let commaSplit = members.split(', ')
+
+    //     // Assemble array showing hours on court for each member
+    //     commaSplit.forEach((piece) => {
+    //         let newPieces = piece.split(' (#')
+    //         let memberName = newPieces[0];
+    //         let memberId = newPieces[1].replace(')','');
+
+    //         let memberMatch = memberHours.find(a => a.name === memberName);
+    //         if (memberMatch) {
+    //             memberMatch.count++;
+    //             memberMatch.hoursOnCourt = memberMatch.hoursOnCourt + timeOnCourt;
+    //             memberMatch.primeTimeOnCourt = memberMatch.primeTimeOnCourt + primeTimeOnCourt;
+    //         } else {
+    //             let toPush = {
+    //                 name: memberName,
+    //                 id: memberId,
+    //                 count: 1,
+    //                 hoursOnCourt: timeOnCourt,
+    //                 primeTimeOnCourt: primeTimeOnCourt
+    //             };
+    //             memberHours.push(toPush)
+    //         }
+    //     })
+    });
+
+    // console.log(eveningLeagueDates)
+
+    // memberHours.sort((a, b) => b.hoursOnCourt - a.hoursOnCourt);
+
+    res.status(200).json(reservationsArray)
+    // res.status(200).json(memberHours)
 })
 
 
@@ -862,7 +1093,7 @@ router.get('/getMembersBreakdown', async (req, res) => {
 
     for (const year of all_years) {
 
-        let reservationsQuery = {
+        let membershipsQuery = {
             $or: [
                 {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
                 {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
@@ -870,9 +1101,9 @@ router.get('/getMembersBreakdown', async (req, res) => {
             "Cancelled Date": "",  // ignore anything that was cancelled
           }
 
-        var reservationsArray = await db.getDB().collection('memberships').aggregate( [
+        var membershipsArray = await db.getDB().collection('memberships').aggregate( [
             {
-              $match: reservationsQuery
+              $match: membershipsQuery
             },
             {
               $group: {
@@ -885,7 +1116,7 @@ router.get('/getMembersBreakdown', async (req, res) => {
 
         let newTempArray = []
     
-        reservationsArray.forEach((a) => {
+        membershipsArray.forEach((a) => {
             if (a._id.membershipType.includes('Junior Membership')) {
                 const tempMatch = newTempArray.find((b) => {
                     return b._id.membershipType === 'Junior Membership'
@@ -934,6 +1165,44 @@ router.get('/getMembersBreakdown', async (req, res) => {
                         }
                     )
                 }
+            } else if (a._id.membershipType.includes('Sponsorship')) {
+                const tempMatch = newTempArray.find((b) => {
+                    return b._id.membershipType === 'Sponsor Membership'
+                })
+                if (tempMatch) {
+                    tempMatch.quantity += a.quantity
+                    tempMatch.revenue += a.revenue
+                } else {
+                    newTempArray.push(
+                        {
+                            _id: { membershipType: 'Sponsor Membership' },
+                            quantity: a.quantity,
+                            revenue: a.revenue
+                        }
+                    )
+                }
+            } else if (
+                a._id.membershipType == 'Adult Membership' ||
+                a._id.membershipType == "End of Season 'Stragglers'" ||
+                a._id.membershipType == "LTC Supporter" ||
+                a._id.membershipType == "Honorary Membership" ||
+                a._id.membershipType == "Staff Membership"
+              ) {
+                const tempMatch = newTempArray.find((b) => {
+                    return b._id.membershipType === 'Adult Membership'
+                })
+                if (tempMatch) {
+                    tempMatch.quantity += a.quantity
+                    tempMatch.revenue += a.revenue
+                } else {
+                    newTempArray.push(
+                        {
+                            _id: { membershipType: 'Adult Membership' },
+                            quantity: a.quantity,
+                            revenue: a.revenue
+                        }
+                    )
+                }
             } else {
                 newTempArray.push(a)
             }
@@ -954,6 +1223,7 @@ router.get('/getMembersBreakdown', async (req, res) => {
         "Smash Sponsorship",
         "Ace Sponsorship",
         "Student Membership",
+        "Sponsor Membership",
         "Instant Tennis Graduate",
         "LTC Supporter"
     ]
@@ -979,6 +1249,241 @@ router.get('/getMembersBreakdown', async (req, res) => {
     })
 
     res.status(200).json(finalArray)
+})
+
+
+const checkForMember = (memsArray, memName) => {
+    const memberFound = memsArray.find((mem) => {
+        return mem['Member Name'] === memName
+    })
+    if (memberFound) {
+        console.log(`${memName} found`)
+    } else {
+        console.log(`${memName} NOT found`)
+    }
+}
+
+const getMembershipsByYear = async (year) => {
+    let membershipsQuery = {
+        $or: [
+            {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+            {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+        ],
+        "Cancelled Date": "",  // ignore anything that was cancelled
+    }
+
+    return await db.getDB().collection('memberships').aggregate( [
+        {
+          $match: membershipsQuery
+        },
+    ]).toArray();
+}
+
+const getMembersByYear = async (year) => {
+
+    const currentYear = new Date().getFullYear();
+    
+    var membersArray = await db.getDB().collection('members').find({}).toArray();
+
+    var membershipsArray = await getMembershipsByYear(year)
+
+    const finalMembers = []
+
+    const uncountedMembershipTypes = [
+        'Event Guest',
+        'Guest',
+        "One Week Pass",
+        "Honorary Membership",
+        "Staff Membership"
+    ]
+
+    for (const membership of membershipsArray) {
+
+        // Exclude some membership types
+        if (uncountedMembershipTypes.includes(membership['Membership Name'])) {
+            // console.log(`skipping ${membership['Membership Name']}`)
+            continue
+        }
+
+        if (membership['Membership Name'] === "Family Membership" || membership['Membership Name'] === "Ace Sponsorship") {
+            // console.log(`found family: ${membership['Family']}`)
+
+            // For each family membership, drill down to get individual members
+
+            const thisFam = membersArray.filter((member) => member['Family ID'] === membership['Family ID']);
+            // console.log(thisFam)
+
+            for (const famMem of thisFam) {
+
+                const birthYear = famMem['Birth Year']
+
+                var adjustedAge = 0
+
+                if (!birthYear) {
+                    // console.log(thisMem)
+                    adjustedAge = famMem['Age'] - (currentYear - year)
+                } else {
+                    adjustedAge = year - famMem['Birth Year']
+                }
+
+                famMem['Adjusted Age'] = adjustedAge
+
+            }
+
+            finalMembers.push(...thisFam);
+
+        } else {
+            // console.log(`countable type ===> ${membership['Membership Name']}`)
+
+            // Find and add these members directly
+            const thisMem = membersArray.find((member) => member['Member #'] === membership['Member #']);
+
+            // Adjust age if necessary
+            // const currentYear = new Date().getFullYear();
+
+            const birthYear = thisMem['Birth Year']
+
+            var adjustedAge = 0
+
+            if (!birthYear) {
+                // console.log(thisMem)
+                adjustedAge = thisMem['Age'] - (currentYear - year)
+            } else {
+                adjustedAge = year - thisMem['Birth Year']
+            }
+
+            thisMem['Adjusted Age'] = adjustedAge
+            
+            finalMembers.push(thisMem)
+        }
+    }
+
+    return finalMembers
+}
+
+router.get('/getActualMembers', async (req, res) => {
+    var year = '2022';
+    const adjustedMembers = await getMembersByYear(year)
+    res.status(200).json(adjustedMembers)
+})
+
+
+router.get('/getMembersAgeDemographics', async (req, res) => {
+
+    // TODO generate list of years dynamically
+    let all_years = [
+        '2020',
+        '2021',
+        '2022',
+        '2023',
+        '2024',
+    ]
+
+    let finalTotals = {}
+
+    for (const year of all_years) {
+
+        const adjustedMembers = await getMembersByYear(year)
+
+        const ageRanges = {
+            "Under 18": 0,
+            "18–29": 0,
+            "30–44": 0,
+            "45–59": 0,
+            "60–74": 0,
+            "75+": 0
+        };
+
+        for (const mem of adjustedMembers) {
+
+            const age = mem['Adjusted Age']
+
+            if (age < 18) {
+                ageRanges["Under 18"]++;
+            } else if (age >= 18 && age <= 29) {
+                ageRanges["18–29"]++;
+            } else if (age >= 30 && age <= 44) {
+                ageRanges["30–44"]++;
+            } else if (age >= 45 && age <= 59) {
+                ageRanges["45–59"]++;
+            } else if (age >= 60 && age <= 74) {
+                ageRanges["60–74"]++;
+            } else {
+                ageRanges["75+"]++;
+            }
+
+        }
+
+        finalTotals[year] = ageRanges
+    }
+
+    res.status(200).json(finalTotals)
+})
+
+
+router.get('/getLostJuniors', async (req, res) => {
+
+    let year = '2023';
+
+    let membershipsQuery2023 = {
+        $or: [
+            {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+            {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+        ],
+        "Cancelled Date": "",  // ignore anything that was cancelled
+        }
+
+    var membershipsArray2023 = await db.getDB().collection('memberships').aggregate( [
+        {
+            $match: membershipsQuery2023
+        },
+        ]).toArray();
+
+    let justJuniors2023 = membershipsArray2023.filter((mem) => {
+        if (mem['Membership Name'].includes('Junior Membership')) {
+            return mem
+        }
+    })
+
+    let juniorNames2023 = justJuniors2023.map((junior) => {
+        return junior['Member Name'];
+    })
+
+    const uniqueNames2023 = new Set(juniorNames2023);
+
+    year = '2024';
+
+    let membershipsQuery2024 = {
+        $or: [
+            {"Start Date": {$gte: `${year}-01-01`, $lt: `${year}-10-01`}},
+            {"End Date": {$gte: `${year}-12-31`, $lt: `${parseInt(year, 10) + 1}-04-02`}},
+        ],
+        "Cancelled Date": "",  // ignore anything that was cancelled
+        }
+
+    var membershipsArray2024 = await db.getDB().collection('memberships').aggregate( [
+        {
+            $match: membershipsQuery2024
+        },
+        ]).toArray();
+
+    let justJuniors2024 = membershipsArray2024.filter((mem) => {
+        if (mem['Membership Name'].includes('Junior Membership')) {
+            return mem
+        }
+    })
+
+    let juniorNames2024 = justJuniors2024.map((junior) => {
+        return junior['Member Name'];
+    })
+
+    const uniqueNames2024 = new Set(juniorNames2024);
+
+    const difference = [...uniqueNames2023].filter(item => !uniqueNames2024.has(item));
+
+    console.log(difference);
+
+    res.status(200).json({})
 })
 
 
@@ -1070,6 +1575,7 @@ router.get('/getMemberLessonHours', async (req, res) => {
 
         // Calculate time on court in hours for this reservation
         const timeOnCourt = getTimeOnCourtMil(startTime, endTime);
+        // const timeOnCourt = getCourtTimeBlock(startTime, endTime);
         const primeTimeOnCourt = getPrimeTimeOnCourtMil(startDate, startTime, endTime);
 
         // Members field contains comma-separated list of 
@@ -1125,6 +1631,7 @@ router.get('/getMemberLessonHours', async (req, res) => {
 
 router.get('/getTimeslotCount', async (req, res) => {
     console.log("CAM called getTimeslotCount");
+    // console.log(req.query);
 
     // These are the only time blocks that can be reserved through the app
     const timeLabels = [
@@ -1146,25 +1653,33 @@ router.get('/getTimeslotCount', async (req, res) => {
     })
     // console.log(slotCounts)
 
-    // let reservationsQuery = {
-    //     "Is Event?": "FALSE",
-    //   }
+    const allLeagueDates = await getLeagueDates()
+    // console.log(allLeagueDates)
 
-    let reservationsQuery = {}
+    // console.log(`allLeagueDates length: ${allLeagueDates.size}`)
+
+    // let reservationsQuery = {}
+    let reservationsQuery = {
+        "Is Event?": "FALSE",
+    }
 
     // reservationsQuery["Start Date / Time"] = { $regex: '2023' }
-    // reservationsQuery["Start Date / Time"] = { $regex: '2023-06' }
+    // reservationsQuery["Start Date / Time"] = { $regex: '2024-09' }
     // reservationsQuery["Start Date / Time"] = { $regex: '11:30' }
 
     if (req.query.Year) {
         reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
     }
 
-    // if (req.query.DayType === 'Weekdays') {
+    if (req.query.DayType === 'Weekdays') {
         reservationsQuery["Day of the Week"] = { $in: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] }
-    // }
+        // reservationsQuery["Day of the Week"] = { $in: ['Monday', 'Tuesday', 'Wednesday', 'Thursday'] }
+        // reservationsQuery["Day of the Week"] = { $in: ['Friday'] }
+    } else {
+        reservationsQuery["Day of the Week"] = { $in: ['Saturday', 'Sunday'] }
+    }
 
-    // reservationsQuery["Day of the Week"] = { $in: ['Saturday', 'Sunday'] }
+    reservationsQuery["Courts"] = { $in: ['Court #6', 'Court #7', 'Court #8'] }
 
     var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
 
@@ -1173,111 +1688,180 @@ router.get('/getTimeslotCount', async (req, res) => {
 
     reservationsArray.forEach((oneRes) => {
 
-        // if (oneRes["Day of the Week"] === 'Saturday') {
-        // if (oneRes["Day of the Week"] === 'Wednesday') {
-        // if (oneRes["Day of the Week"] === 'Sunday') {
+        // Filter out data for days where leagues are running in evenings
+        // as it skews data to make evening slots appear more popular
+        // than they really are
+        const resDate = parseDate(oneRes['Start Date / Time'])
+        if (allLeagueDates.has(resDate)) {
+            return;
+        }
+
+        // Parse time of day out of date field
+        const startRes = oneRes['Start Date / Time'];
+        const endRes = oneRes['End Date / Time'];
+
+        const [startDate, startTime] = startRes.split(' ');
+        const [endDate, endTime] = endRes.split(' ');
+
+        const timeBlocks = getTimeBlocks(startTime, endTime)
+
+        // One reservation record can be for multiple courts,
+        // especially for events like women's night, so count
+        // the number of courts in this reservation
+        let resCourts = oneRes['Courts']
+        const courtCount = (resCourts.match(/\bCourt\b/gi) || []).length;
+
+        timeBlocks.forEach((blk) => {
+
+            let blockMatch = slotCounts.find(a => a.timeSlot === blk);
+            if (blockMatch) {
+                blockMatch.count = blockMatch.count + courtCount;
+            }
+        })
+    })
+
+    res.status(200).json(slotCounts)
+})
+
+
+router.get('/getTimeslotUsage', async (req, res) => {
+    console.log("CAM called getTimeslotUsage");
+
+    // These are the only time blocks that can be reserved through the app
+    const timeLabels = [
+        "5:00 AM", "5:30 AM",
+        "6:00 AM", "6:30 AM", "7:00 AM", "7:30 AM", "8:00 AM", "8:30 AM",
+        "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+        "12:00 PM", "12:30 PM", "1:00 PM", "1:30 PM", "2:00 PM", "2:30 PM",
+        "3:00 PM", "3:30 PM", "4:00 PM", "4:30 PM", "5:00 PM", "5:30 PM",
+        "6:00 PM", "6:30 PM", "7:00 PM", "7:30 PM", "8:00 PM", "8:30 PM",
+        "9:00 PM", "9:30 PM", "10:00 PM", "10:30 PM"
+    ];
+
+    // Initialize all slots with zero
+    // const slotCounts = timeLabels.map((timeblock) => {
+    //     return {
+    //         timeSlot: timeblock,
+    //         count: 0
+    //     }
+    // })
+    // console.log(slotCounts)
+
+    const slotCounts = {
+        isEvent: 0,
+        notEvent: 0,
+        empty: 976
+        // empty: 8
+    }
+
+    let reservationsQuery = {}
+
+    // reservationsQuery["Start Date / Time"] = { $regex: '2023' }
+    // reservationsQuery["Start Date / Time"] = { $regex: '2024-07' }
+    // reservationsQuery["Start Date / Time"] = { $regex: '^2024-08-[0-3][0-9]' }
+    reservationsQuery["Start Date / Time"] = { $regex: '^2024-0[6-9]-[0-3][0-9]' }
+    // reservationsQuery["Start Date / Time"] = { $regex: '^2024-07-18' }
+    // reservationsQuery["Start Date / Time"] = { $regex: '11:30' }
+
+    // if (req.query.Year) {
+    //     reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
+    // }
+
+    reservationsQuery["Reservation Type"] = { $ne: 'Court Maintenance' }
+
+    reservationsQuery["Day of the Week"] = { $in: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] }
+
+    var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
+
+    // console.log(reservationsArray)
+
+    let theTime = '12:30 PM'
+
+    reservationsArray.forEach((oneRes) => {
 
             // Parse time of day out of date field
             const startRes = oneRes['Start Date / Time'];
             const endRes = oneRes['End Date / Time'];
 
-            // console.log(`=============`)
-
-            // console.log(`startRes: ${startRes}`)
-            // console.log(`startRes: ${endRes}`)
-
             const [startDate, startTime] = startRes.split(' ');
-            // console.log(`startTime: ${startTime}`)
             const [endDate, endTime] = endRes.split(' ');
-            // console.log(`endTime: ${endTime}`)
 
             const timeBlocks = getTimeBlocks(startTime, endTime)
-            // console.log(`timeBlocks: ${timeBlocks}`)
 
-            timeBlocks.forEach((blk) => {
+            if (timeBlocks.includes(theTime)) {
+            // if (timeBlocks.includes('11:00 AM')) {
+                // console.log(timeBlocks)
+                // console.log(oneRes['Is Event?'])
+                // console.log(oneRes)
 
-                let blockMatch = slotCounts.find(a => a.timeSlot === blk);
-                if (blockMatch) {
-                    blockMatch.count++;
-                // } else {
-                //     let toPush = {
-                //         timeSlot: blk,
-                //         count: 1,
-                //     };
-                //     slotCounts.push(toPush)
+                let resCourts = oneRes['Courts']
+
+                const courtCount = (resCourts.match(/\bCourt\b/gi) || []).length;
+
+                if (oneRes['Is Event?'] == 'TRUE') {
+                    slotCounts['isEvent'] = slotCounts['isEvent'] + courtCount
+                    slotCounts['empty'] = slotCounts['empty'] - courtCount
+                } else if (oneRes['Is Event?'] == 'FALSE') {
+                    slotCounts['notEvent'] = slotCounts['notEvent'] + courtCount
+                    slotCounts['empty'] = slotCounts['empty'] - courtCount
                 }
+            }
 
-
-            })
-        // }
     })
+
+
+    console.log(slotCounts)
+
+    // let memberHours = []
+    // let timeBlockCounts = []
+
+    // reservationsArray.forEach((oneRes) => {
+
+    //     // if (oneRes["Day of the Week"] === 'Saturday') {
+    //     // if (oneRes["Day of the Week"] === 'Wednesday') {
+    //     // if (oneRes["Day of the Week"] === 'Sunday') {
+
+    //         // Parse time of day out of date field
+    //         const startRes = oneRes['Start Date / Time'];
+    //         const endRes = oneRes['End Date / Time'];
+
+    //         // console.log(`=============`)
+
+    //         // console.log(`startRes: ${startRes}`)
+    //         // console.log(`startRes: ${endRes}`)
+
+    //         const [startDate, startTime] = startRes.split(' ');
+    //         // console.log(`startTime: ${startTime}`)
+    //         const [endDate, endTime] = endRes.split(' ');
+    //         // console.log(`endTime: ${endTime}`)
+
+    //         const timeBlocks = getTimeBlocks(startTime, endTime)
+    //         // console.log(`timeBlocks: ${timeBlocks}`)
+
+    //         timeBlocks.forEach((blk) => {
+
+    //             let blockMatch = slotCounts.find(a => a.timeSlot === blk);
+    //             if (blockMatch) {
+    //                 blockMatch.count++;
+    //             // } else {
+    //             //     let toPush = {
+    //             //         timeSlot: blk,
+    //             //         count: 1,
+    //             //     };
+    //             //     slotCounts.push(toPush)
+    //             }
+
+
+    //         })
+    //     // }
+    // })
 
     // timeBlockCounts.sort((a, b) => b.count - a.count);
 
-    res.status(200).json(slotCounts)
+    // res.status(200).json(slotCounts)
+    res.status(200).json({})
 })
 
-// router.get('/getTimeslotCount', async (req, res) => {
-//     console.log("CAM called getTimeslotCount");
-
-//     let reservationsQuery = {
-//         "Is Event?": "FALSE",
-//       }
-
-//     // reservationsQuery["Start Date / Time"] = { $regex: '2023' }
-//     reservationsQuery["Start Date / Time"] = { $regex: '2023-06' }
-//     // reservationsQuery["Start Date / Time"] = { $regex: '11:30' }
-
-//     var reservationsArray = await db.getDB().collection('reservations').find(reservationsQuery).toArray();
-
-//     let memberHours = []
-//     let timeBlockCounts = []
-
-//     reservationsArray.forEach((oneRes) => {
-
-//         // if (oneRes["Day of the Week"] === 'Saturday') {
-//         // if (oneRes["Day of the Week"] === 'Wednesday') {
-//         // if (oneRes["Day of the Week"] === 'Sunday') {
-
-//             // Parse time of day out of date field
-//             const startRes = oneRes['Start Date / Time'];
-//             const endRes = oneRes['End Date / Time'];
-
-//             console.log(`=============`)
-
-//             console.log(`startRes: ${startRes}`)
-//             console.log(`startRes: ${endRes}`)
-
-//             const [startDate, startTime] = startRes.split(' ');
-//             console.log(`startTime: ${startTime}`)
-//             const [endDate, endTime] = endRes.split(' ');
-//             console.log(`endTime: ${endTime}`)
-
-//             const timeBlocks = getTimeBlocks(startTime, endTime)
-//             console.log(`timeBlocks: ${timeBlocks}`)
-
-//             timeBlocks.forEach((blk) => {
-
-//                 let blockMatch = timeBlockCounts.find(a => a.timeSlot === blk);
-//                 if (blockMatch) {
-//                     blockMatch.count++;
-//                 } else {
-//                     let toPush = {
-//                         timeSlot: blk,
-//                         count: 1,
-//                     };
-//                     timeBlockCounts.push(toPush)
-//                 }
-
-
-//             })
-//         // }
-//     })
-
-//     timeBlockCounts.sort((a, b) => b.count - a.count);
-
-//     res.status(200).json(timeBlockCounts)
-// })
 
 router.get('/trucateRestest', async (req, res) => {
     var result = await db.getDB().collection('reservations').deleteMany({});
@@ -1316,6 +1900,7 @@ router.get('/getInstructorHours', async (req, res) => {
 
         // Calculate time on court in hours for this reservation
         const timeOnCourt = getTimeOnCourtMil(startTime, endTime);
+        // const timeOnCourt = getCourtTimeBlock(startTime, endTime);
         const primeTimeOnCourt = getPrimeTimeOnCourtMil(startDate, startTime, endTime);
 
         // Members field contains comma-separated list of 
@@ -1460,6 +2045,7 @@ router.get('/getLongestFamilyDay', async (req, res) => {
 
         // Calculate time on court in hours for this reservation
         const timeOnCourt = getTimeOnCourtMil(startTime, endTime);
+        // const timeOnCourt = getCourtTimeBlock(startTime, endTime);
         // const primeTimeOnCourt = getPrimeTimeOnCourt(startDate, startTime, endTime);
 
         const members = oneRes.Members;
@@ -1505,9 +2091,7 @@ router.get('/getLongestFamilyDay', async (req, res) => {
 })
 
 router.get('/getAllMembers', async (req, res) => {
-
     var membersArray = await db.getDB().collection('members').find({}).toArray();
-
     res.status(200).json(membersArray)
 })
 
