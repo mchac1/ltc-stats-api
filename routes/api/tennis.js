@@ -1,5 +1,15 @@
 const { Router } = require('express')
 const db = require("../../db");
+const fs = require('fs');
+
+// Read and parse JSON from file
+const rawData = fs.readFileSync('ltc_info.json', 'utf8');
+const data = JSON.parse(rawData);
+
+// Use the data
+console.log(data["2023"]);
+// console.log(data);
+
 
 const router = Router()
 
@@ -17,7 +27,7 @@ router.get('/getReservationCountByMember', async (req, res) => {
         "Reservation Type": {
           $in: ["Singles", "Doubles"],
         },
-        "Is Event?": false,
+        "Is Event?": { $in: ["FALSE", false] }
       }
     if (req.query.Year) {
         matchQuery["Start Date / Time"] = { $regex: req.query.Year }
@@ -68,6 +78,40 @@ router.get('/getReservationCountByMonth', async (req, res) => {
       ],).toArray();
 
     reservationsArray.sort((a, b) => a._id.month.localeCompare(b._id.month));
+      
+    res.status(200).json(reservationsArray)
+})
+
+router.get('/getReservationCountByYear', async (req, res) => {
+    console.log("CAM called getReservationCountByYear");
+    let reservationsQuery = {
+        "Reservation Type": {
+        //   $in: ["Singles", "Doubles", "Backboard (only court 8)", "Ball Machine"],
+          $in: ["Singles", "Doubles"],
+        },
+        "Is Event?": { $in: ["FALSE", false] },
+      }
+
+    var reservationsArray = await db.getDB().collection('reservations').aggregate( [
+        {
+            $match: reservationsQuery
+        },
+        {
+          $addFields: {
+            yr: {
+              $substr: ['$Start Date / Time', 0, 4]
+            }
+          }
+        },
+        {
+          $group: {
+            _id: { year: '$yr' },
+            totalQuantity: { $sum: 1 }
+          }
+        }
+      ],).toArray();
+
+    reservationsArray.sort((a, b) => a._id.year.localeCompare(b._id.year));
       
     res.status(200).json(reservationsArray)
 })
@@ -291,56 +335,6 @@ const getReservationInstructor = (reservationRecord) => {
     return instructor
 }
 
-
-router.get('/primeTimeTest', async (req, res) => {
-    console.log("CAM called primeTimeTest");
-
-    // case 1
-    // let startDate = "2025-11-11 16:00";
-    // let endDate = "2025-11-11 17:00";
-
-    // case 2
-    // let startDate = "2025-11-11 19:30";
-    // let endDate = "2025-11-11 21:00";
-    // let startDate = "2025-11-11 7:30 PM";
-    // let endDate = "2025-11-11 10:00 PM";
-
-    // case 3
-    // let startDate = "2025-11-11 15:30";
-    // let endDate = "2025-11-11 18:00";
-    let startDate = "2025-11-11 3:30 PM";
-    let endDate = "2025-11-11 6:00 PM";
-
-    // case 4
-    // let startDate = "2025-11-11 7:30";
-    // let endDate = "2025-11-11 9:00";
-    // let startDate = "2025-11-11 7:30 AM";
-    // let endDate = "2025-11-11 9:00 AM";
-
-    const yimeOnCourt = getTimeOnCourtNew(startDate, endDate);
-    console.log(yimeOnCourt)
-
-
-    // const primeTimeOnCourt = getPrimeTimeNew(startDate, endDate);
-    // console.log(primeTimeOnCourt)
-
-    // const [delme1, startTime, startAmPm] = startDate.split(' ');
-    // console.log(`${startTime} ${startAmPm}`)
-    // const [delme2, endTime, endAmPm] = endDate.split(' ');
-    // console.log(`${endTime} ${endAmPm}`)
-
-    // const theDate = new Date(startDate);
-
-    // console.log(theDate)
-    // console.log(theDate.getDay())
-
-    // const primeTimeOnCourt = getPrimeTimeOnCourtMil(startDate, startTime, endTime);
-
-
-    
-
-    res.status(200).json({})
-});
 
 router.get('/getMemberYearlyHours', async (req, res) => {
     console.log("CAM called getMemberYearlyHours");
@@ -1087,6 +1081,7 @@ router.get('/getMembersBreakdown', async (req, res) => {
         '2022',
         '2023',
         '2024',
+        '2025',
     ]
 
     let tempArray = []
@@ -1117,7 +1112,8 @@ router.get('/getMembersBreakdown', async (req, res) => {
         let newTempArray = []
     
         membershipsArray.forEach((a) => {
-            if (a._id.membershipType.includes('Junior Membership')) {
+            if (a._id.membershipType.includes('Junior Membership') ||
+                a._id.membershipType.includes('High-Performance Membership')) {
                 const tempMatch = newTempArray.find((b) => {
                     return b._id.membershipType === 'Junior Membership'
                 })
@@ -1165,7 +1161,7 @@ router.get('/getMembersBreakdown', async (req, res) => {
                         }
                     )
                 }
-            } else if (a._id.membershipType.includes('Sponsorship')) {
+            } else if (a._id.membershipType.includes('Sponsor')) {
                 const tempMatch = newTempArray.find((b) => {
                     return b._id.membershipType === 'Sponsor Membership'
                 })
@@ -1181,12 +1177,29 @@ router.get('/getMembersBreakdown', async (req, res) => {
                         }
                     )
                 }
+            } else if (a._id.membershipType.includes('Family')) {
+                const tempMatch = newTempArray.find((b) => {
+                    return b._id.membershipType === 'Family Membership'
+                })
+                if (tempMatch) {
+                    tempMatch.quantity += a.quantity
+                    tempMatch.revenue += a.revenue
+                } else {
+                    newTempArray.push(
+                        {
+                            _id: { membershipType: 'Family Membership' },
+                            quantity: a.quantity,
+                            revenue: a.revenue
+                        }
+                    )
+                }
             } else if (
                 a._id.membershipType == 'Adult Membership' ||
-                a._id.membershipType == "End of Season 'Stragglers'" ||
-                a._id.membershipType == "LTC Supporter" ||
-                a._id.membershipType == "Honorary Membership" ||
-                a._id.membershipType == "Staff Membership"
+                a._id.membershipType.includes('General Membership') ||
+                a._id.membershipType.includes('Staff Membership') ||
+                a._id.membershipType.includes('Honorary Membership') ||
+                a._id.membershipType.includes('LTC Supporter') ||
+                a._id.membershipType.includes('End of Season')
               ) {
                 const tempMatch = newTempArray.find((b) => {
                     return b._id.membershipType === 'Adult Membership'
@@ -1660,7 +1673,7 @@ router.get('/getTimeslotCount', async (req, res) => {
 
     // let reservationsQuery = {}
     let reservationsQuery = {
-        "Is Event?": "FALSE",
+        "Is Event?": { $in: ["FALSE", false] },
     }
 
     // reservationsQuery["Start Date / Time"] = { $regex: '2023' }
@@ -1863,7 +1876,7 @@ router.get('/getTimeslotUsage', async (req, res) => {
 })
 
 
-router.get('/trucateRestest', async (req, res) => {
+router.get('/truncateRestest', async (req, res) => {
     var result = await db.getDB().collection('reservations').deleteMany({});
     console.log(`${result.deletedCount} documents were deleted.`);
     res.status(200).json({ result: `${result.deletedCount} documents were deleted` })
@@ -1876,10 +1889,13 @@ router.get('/getLatestReservation', async (req, res) => {
 })
 
 
+// CAM TODO new idea: return total number of bookings by year to show overall court usage for each year
+
+
 router.get('/getInstructorHours', async (req, res) => {
 
     let reservationsQuery = {
-        "Is Event?": "FALSE",
+        "Is Event?": { $in: ["FALSE", false] },
         "Reservation Type": "Private Lesson",
       }
     if (req.query.Year) {
@@ -1895,16 +1911,12 @@ router.get('/getInstructorHours', async (req, res) => {
         // Parse time of day out of date field
         const startRes = oneRes['Start Date / Time'];
         const endRes = oneRes['End Date / Time'];
-        const [startDate, startTime] = startRes.split(' ');
-        const [endDate, endTime] = endRes.split(' ');
 
         // Calculate time on court in hours for this reservation
-        const timeOnCourt = getTimeOnCourtMil(startTime, endTime);
-        // const timeOnCourt = getCourtTimeBlock(startTime, endTime);
-        const primeTimeOnCourt = getPrimeTimeOnCourtMil(startDate, startTime, endTime);
+        const timeOnCourt = getTimeOnCourtNew(startRes, endRes);
+        const primeTimeOnCourt = getPrimeTimeNew(startRes, endRes);
 
-        // Members field contains comma-separated list of 
-        // players in that reservation. Need to parse them out.
+        // Get the instructor name from the record
         const instructors = getReservationInstructor(oneRes);
 
         // If no members associated with reservation, skip it
@@ -1942,13 +1954,15 @@ router.get('/getReservationsByType', async (req, res) => {
     res.status(200).json(reservationsArray)
 })
 
+
+// This returns total bookings of different types for each court
 router.get('/getReservationTypeCourtTotals', async (req, res) => {
 
     let reservationsQuery = {
         "Reservation Type": {
           $in: ["Singles", "Doubles", "Backboard (only court 8)", "Ball Machine"],
         },
-        "Is Event?": "FALSE",
+        "Is Event?": { $in: ["FALSE", false] },
       }
     if (req.query.Year) {
         reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
@@ -1961,6 +1975,10 @@ router.get('/getReservationTypeCourtTotals', async (req, res) => {
     reservationsArray.forEach((oneRes) => {
 
         let courtMatch = courtTotals.find(a => a.court === oneRes.Courts);
+
+        // Some oddball bookings cover multiple courts (separated by a comma). Skip those cases.
+        if (oneRes.Courts.includes(',')) { return };
+
         if (courtMatch) {
             courtMatch.reservationsTotal++;
             if (courtMatch[oneRes["Reservation Type"]]) {
@@ -2102,7 +2120,7 @@ router.get('/getMemberFavourites', async (req, res) => {
         "Reservation Type": {
           $in: ["Singles", "Doubles", "Backboard (only court 8)", "Ball Machine"],
         },
-        "Is Event?": "FALSE",
+        "Is Event?": { $in: ["FALSE", false] },
       }
     // if (req.query.Year) {
     //     reservationsQuery["Start Date / Time"] = { $regex: req.query.Year }
@@ -2145,15 +2163,24 @@ router.get('/getMemberFavourites', async (req, res) => {
             typeTotals.push(toPush)
         }
 
-        const startRes = oneRes['Start Date / Time'];
-        const [startDate, startTimeOfDay, startAmPm] = startRes.split(' ');
-        const startTime = `${startTimeOfDay} ${startAmPm}`;
-        let timeMatch = timeTotals.find(a => a.time === startTime);
+        const start = oneRes['Start Date / Time'];
+
+        // Get military time if not already in that format
+        if (start.includes(AM_STR) || start.includes(PM_STR)) {
+            const [startDay, startTimeOfDay, startAmPm] = start.split(' ');
+            const startTime = `${startTimeOfDay} ${startAmPm}`;
+            theStart = convertTime12to24(startTime);
+        } else {
+            const [startDay, startTimeOfDay] = start.split(' ');
+            theStart = startTimeOfDay
+        }
+
+        let timeMatch = timeTotals.find(a => a.time === theStart);
         if (timeMatch) {
             timeMatch.reservationsTotal++;
         } else {
             let toPush = {
-                time: startTime,
+                time: theStart,
                 reservationsTotal: 1,
             };
             timeTotals.push(toPush)
@@ -2168,7 +2195,7 @@ router.get('/getMemberFavourites', async (req, res) => {
 
             let commaSplit = members.split(', ')
 
-            // Assemble array showing hours on court for each member
+            // Assemble array containing bookings with each member
             commaSplit.forEach((piece) => {
                 let newPieces = piece.split(' (#')
                 let memberName = newPieces[0];
@@ -2176,19 +2203,14 @@ router.get('/getMemberFavourites', async (req, res) => {
 
                 if (memberName !== req.query.Name) {
 
-                    // let memberMatch = memberHours.find(a => a.name === memberName);
                     let memberMatch = memberHours.find(a => a.id === memberId);
                     if (memberMatch) {
                         memberMatch.count++;
-                        // memberMatch.hoursOnCourt = memberMatch.hoursOnCourt + timeOnCourt;
-                        // memberMatch.primeTimeOnCourt = memberMatch.primeTimeOnCourt + primeTimeOnCourt;
                     } else {
                         let toPush = {
                             name: memberName,
                             id: memberId,
                             count: 1,
-                            // hoursOnCourt: timeOnCourt,
-                            // primeTimeOnCourt: primeTimeOnCourt
                         };
                         memberHours.push(toPush)
                     }
@@ -2223,16 +2245,15 @@ router.get('/getReservationsByYearType', async (req, res) => {
     res.status(200).json(reservationsArray)
 })
 
-// router.get('/getSinglesReservations', async (req, res) => {
-//     console.log("CAM called getSinglesReservations");
-//     var allReservationsArray = await db.getDB().collection('reservations').find({"Reservation Type": "Singles"}).toArray();
-//     res.status(200).json(allReservationsArray)
-// })
 
 router.get('/getDistinctTypes', async (req, res) => {
-    console.log("CAM called getDistinctTypes");
-    // var reservationsArray = await db.getDB().collection('reservations').distinct("Reservation Type", {"Is Event?": false});
-    var reservationsArray = await db.getDB().collection('reservations').distinct("Reservation Type", {"Is Event?": "TRUE"});
+
+    let query = {
+        "Is Event?": { $in: ["FALSE", false] },
+        // "Is Event?": { $in: ["TRUE", true] },
+      }
+
+    var reservationsArray = await db.getDB().collection('reservations').distinct("Reservation Type", query);
     res.status(200).json(reservationsArray)
 });
 
